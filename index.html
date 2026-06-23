@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#181511">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MacroTrack">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <title>MacroTrack — Tu tracker</title>
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <div class="title">Macro<span>Track</span></div>
+      <div class="date-label" id="dateLabel"></div>
+    </div>
+    <div id="syncStatus" data-level="">Local</div>
+  </header>
+
+  <main>
+    <section id="view-today" class="view active"></section>
+    <section id="view-progress" class="view"></section>
+    <section id="view-profile" class="view"></section>
+  </main>
+
+  <nav class="nav">
+    <button data-view="today" class="on">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/></svg>Hoy</button>
+    <button data-view="progress">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5 L9.5 10.5 L13 13.5 L20 5.5"/><path d="M20 5.5 L20 9 M20 5.5 L16.5 5.5"/></svg>Progreso</button>
+    <button data-view="profile">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 19.5 a6.5 6.5 0 0 1 13 0"/></svg>Perfil</button>
+  </nav>
+
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <div class="row spread" style="margin-bottom:8px">
+        <span></span>
+        <button class="btn secondary small" onclick="closeModal()" style="padding:6px 12px">✕ Cerrar</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="foods.js"></script>
+  <script src="nutrition.js"></script>
+  <script src="store.js"></script>
+  <script src="sync.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+    }
+  </script>
+</body>
+</html>

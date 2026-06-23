@@ -1,0 +1,14 @@
+{
+  "name": "MacroTrack — Calorías y Macros",
+  "short_name": "MacroTrack",
+  "description": "Tracker de calorías y macros para subir de peso lean.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#181511",
+  "theme_color": "#181511",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
