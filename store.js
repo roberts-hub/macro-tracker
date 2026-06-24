@@ -9,6 +9,7 @@ const Store = {
     customFoods: [],        // alimentos creados por el usuario
     sync: { enabled: false, url: "", key: "", code: "" },
     ai: { enabled: false, provider: "gemini", key: "", model: "gemini-2.0-flash" }, // solo local, NUNCA se sincroniza
+    whoop: { enabled: false, workerUrl: "", code: "" }, // integración WHOOP (calorías quemadas, sueño, recuperación)
     updatedAt: 0,
   },
   _subs: [],

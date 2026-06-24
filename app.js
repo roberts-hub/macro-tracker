@@ -18,6 +18,13 @@
 
     if (Store.state.sync?.enabled && window.Sync) Sync.syncOnLoad();
 
+    // Retorno del OAuth de WHOOP + sincronización automática al abrir
+    if (window.WHOOPC) {
+      const params = new URLSearchParams(location.search);
+      if (params.get("whoop") === "ok") { toast("WHOOP conectado ✔"); history.replaceState(null, "", location.pathname); }
+      if (WHOOPC.ready()) WHOOPC.sync().then(r => { if (r.ok) renderAll(); });
+    }
+
     if (!Store.state.profile) {
       openOnboarding();
     }
@@ -145,7 +152,7 @@
         <label class="qtylab" style="flex:1">Sueño (h)<input type="number" id="actSleep" inputmode="decimal" step="0.1" value="${a.sleepH || ""}" placeholder="h"></label>
         <label class="qtylab" style="flex:1">Recup. %<input type="number" id="actRec" inputmode="decimal" value="${a.recovery || ""}" placeholder="%"></label>
       </div>
-      <div class="hint" style="margin-top:8px">Captura tus datos de WHOOP del día. La sincronización automática con tu cuenta WHOOP la podemos conectar después (requiere un paso de configuración tuyo).</div>
+      <div class="hint" style="margin-top:8px">${Store.state.whoop?.enabled ? "Sincronizado desde WHOOP. Puedes corregir a mano si hace falta." : "Anota tus datos de WHOOP, o conéctalo para que se sincronice solo (Perfil → Conectar WHOOP)."}</div>
     </div>`;
   }
 
@@ -295,6 +302,13 @@
       else tips.push(["info", `Te faltan <b>${r(rem.kcal)} kcal</b> para tu superávit de hoy.`]);
     } else if (rem.kcal < -150) tips.push(["warn", `Te pasaste <b>${r(-rem.kcal)} kcal</b> de tu objetivo (${fmt(t.kcalTarget)}).`]);
     else tips.push(["good", `Calorías en rango: ${fmt(tot.kcal)} / ${fmt(t.kcalTarget)} kcal.`]);
+
+    const act = window.WHOOPC ? WHOOPC.activity(currentDate) : null;
+    if (act && act.burned > 0) {
+      const net = tot.kcal - act.burned;
+      tips.unshift(["info", `<b>WHOOP:</b> quemaste <b>${fmt(act.burned)} kcal</b>. Tu balance real es <b>${net >= 0 ? "+" : ""}${fmt(net)} kcal</b> (comido − quemado). Para subir músculo busca un balance de <b>+250 a +350</b>.`]);
+      if (act.recovery != null && act.recovery < 50) tips.push(["warn", `Recuperación baja (${act.recovery}%). Prioriza dormir y proteína; modera el cardio extra hoy.`]);
+    }
 
     if (rem.water > 500) tips.push(["info", `Toma ~${(rem.water / 1000).toFixed(1)} L más de agua hoy.`]);
     if (rem.fiber > 10) tips.push(["info", `Suma fibra (faltan ${r(rem.fiber)} g): fruta, verdura, avena, legumbres.`]);
@@ -506,6 +520,12 @@
       </div>
 
       <div class="card">
+        <h2>⌚ WHOOP — actividad y recuperación</h2>
+        <p class="muted" id="whoopDesc"></p>
+        <button class="btn secondary" id="whoopBtn">${Store.state.whoop?.enabled ? "Configuración de WHOOP" : "Conectar WHOOP"}</button>
+      </div>
+
+      <div class="card">
         <h2>☁︎ Sincronizar celular ↔ compu</h2>
         <p class="muted" id="syncDesc"></p>
         <button class="btn secondary" id="syncBtn">${Store.state.sync?.enabled ? "Configuración de sincronización" : "Activar sincronización"}</button>
@@ -526,8 +546,12 @@
     $("#aiDesc").textContent = Store.state.ai?.enabled
       ? `IA ACTIVA con el modelo ${Store.state.ai.model}. Describe tu comida en lenguaje natural y la convierte en macros.`
       : "Conecta tu clave de Anthropic para que la IA estime los macros de cualquier platillo que describas. La clave se guarda solo en este dispositivo.";
+    $("#whoopDesc").textContent = Store.state.whoop?.enabled
+      ? `WHOOP conectado. Trae tus calorías quemadas, sueño y recuperación de cada día.`
+      : "Conecta tu WHOOP para ver tu balance real (comido − quemado), sueño y recuperación en el Coach.";
     $("#editProfileBtn").addEventListener("click", () => openProfileEditor());
     $("#aiBtn").addEventListener("click", openAISettings);
+    $("#whoopBtn").addEventListener("click", openWhoopModal);
     $("#syncBtn").addEventListener("click", openSyncModal);
     $("#exportBtn").addEventListener("click", exportData);
     $("#importBtn").addEventListener("click", importData);
@@ -1073,6 +1097,43 @@
       Store.state.ai = { enabled: false, provider: a.provider || "gemini", key: a.key, model: a.model };
       Store.save({ remote: false }); closeModal(); toast("IA desactivada");
     });
+  }
+
+  // ---------------- WHOOP (modal) ----------------
+  function openWhoopModal() {
+    const w = Store.state.whoop || {};
+    showModal(`
+      <h3>⌚ Conectar WHOOP</h3>
+      <div class="banner info">Sigue la guía <b>WHOOP-SETUP.md</b> (1 vez): creas una app gratis en <a href="https://developer.whoop.com" target="_blank">developer.whoop.com</a> y un Worker gratis en Cloudflare. Pega aquí la <b>URL de tu Worker</b> y un <b>código personal</b>.</div>
+      <label class="field"><span class="lbl">URL del Worker (Cloudflare)</span><input type="text" id="whUrl" value="${w.workerUrl || ""}" placeholder="https://tu-worker.workers.dev"></label>
+      <label class="field"><span class="lbl">Tu código personal</span><input type="text" id="whCode" value="${w.code || ""}" placeholder="ej. roberts-whoop"></label>
+      <div class="hint">El mismo código va en tu Worker. No compartas este código.</div>
+      <button class="btn" id="whConnect">Guardar y conectar WHOOP</button>
+      ${w.enabled ? `<button class="btn secondary" id="whSync" style="margin-top:10px">Sincronizar ahora</button>
+                     <button class="btn secondary" id="whOff" style="margin-top:10px">Desconectar</button>` : ""}
+    `);
+    const save = () => {
+      const workerUrl = $("#whUrl").value.trim().replace(/\/$/, "");
+      const code = $("#whCode").value.trim();
+      if (!workerUrl || !code) { toast("Completa URL y código"); return false; }
+      Store.state.whoop = { enabled: true, workerUrl, code };
+      Store.save({ remote: false });
+      return true;
+    };
+    $("#whConnect").addEventListener("click", () => { if (save()) { closeModal(); window.location.href = WHOOPC.loginUrl(); } });
+    if (w.enabled) {
+      $("#whSync").addEventListener("click", async () => {
+        if (!save()) return;
+        toast("Sincronizando WHOOP…");
+        const r = await WHOOPC.sync();
+        toast(r.ok ? `WHOOP sincronizado (${r.days} día/s)` : "Error WHOOP: " + (r.error || ""));
+        if (r.ok) renderAll();
+      });
+      $("#whOff").addEventListener("click", () => {
+        Store.state.whoop = { enabled: false, workerUrl: w.workerUrl, code: w.code };
+        Store.save({ remote: false }); closeModal(); toast("WHOOP desconectado");
+      });
+    }
   }
 
   // ---------------- sincronización (modal) ----------------
