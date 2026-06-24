@@ -68,9 +68,16 @@ Otras reglas:
   cfg() { return window.Store.state.ai || {}; },
   ready() { const c = this.cfg(); return !!(c.enabled && c.key); },
 
-  async parse(text, meal) {
+  async _fetch(messages, useSchema, maxTokens) {
     const c = this.cfg();
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const body = {
+      model: c.model || "claude-haiku-4-5",
+      max_tokens: maxTokens || 1024,
+      system: this.SYSTEM,
+      messages,
+    };
+    if (useSchema) body.output_config = { format: { type: "json_schema", schema: this.SCHEMA } };
+    return fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": c.key,
@@ -78,31 +85,54 @@ Otras reglas:
         "anthropic-dangerous-direct-browser-access": "true",
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        model: c.model || "claude-haiku-4-5",
-        max_tokens: 1024,
-        system: this.SYSTEM,
-        messages: [{ role: "user", content: `Comida del tiempo "${meal}". Texto: ${text}` }],
-        output_config: { format: { type: "json_schema", schema: this.SCHEMA } },
-      }),
+      body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      const body = await res.text();
-      if (res.status === 401) throw new Error("Clave de API inválida. Revísala en Perfil → Asistente IA.");
-      if (res.status === 429) throw new Error("Límite de uso alcanzado. Intenta en un momento.");
-      throw new Error("Error de la IA (" + res.status + "). " + body.slice(0, 120));
-    }
-    const data = await res.json();
+  },
+
+  _errMsg(status, body) {
+    if (status === 401) return "Clave de API inválida o sin créditos. Revísala en Perfil → Asistente IA.";
+    if (status === 403) return "La clave no tiene permiso para este modelo. Prueba con Haiku 4.5.";
+    if (status === 404) return "Modelo no encontrado. Elige otro modelo en la configuración.";
+    if (status === 429) return "Límite de uso alcanzado. Intenta en un momento.";
+    return "Error de la IA (" + status + "). " + (body || "").slice(0, 140);
+  },
+
+  // Extrae el texto y lo parsea como JSON (tolera ```json ... ```)
+  _extractJSON(data) {
     if (data.stop_reason === "refusal") throw new Error("La IA no pudo procesar ese texto.");
     const block = (data.content || []).find(b => b.type === "text");
-    if (!block) throw new Error("Respuesta vacía de la IA.");
-    const parsed = JSON.parse(block.text);
+    if (!block || !block.text) throw new Error("Respuesta vacía de la IA.");
+    let txt = block.text.trim();
+    const fence = txt.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) txt = fence[1].trim();
+    else { const s = txt.indexOf("{"), e = txt.lastIndexOf("}"); if (s >= 0 && e > s) txt = txt.slice(s, e + 1); }
+    return JSON.parse(txt);
+  },
+
+  async parse(text, meal) {
+    const messages = [{ role: "user", content: `Comida del tiempo "${meal}". Texto del usuario: ${text}\n\nDevuelve SOLO el objeto JSON con la lista "items".` }];
+    let res = await this._fetch(messages, true);
+    // Si el modelo/cuenta no acepta salida estructurada, reintenta sin esquema
+    if (res.status === 400) res = await this._fetch(messages, false);
+    if (!res.ok) throw new Error(this._errMsg(res.status, await res.text()));
+    const parsed = this._extractJSON(await res.json());
     return (parsed.items || []).map(it => ({
       name: it.name, grams: Math.round(it.grams) || 0,
       kcal: Math.round(it.kcal) || 0,
-      protein: +(+it.protein).toFixed(1), carbs: +(+it.carbs).toFixed(1),
-      fat: +(+it.fat).toFixed(1), fiber: +(+it.fiber || 0).toFixed(1),
+      protein: +(+it.protein || 0).toFixed(1), carbs: +(+it.carbs || 0).toFixed(1),
+      fat: +(+it.fat || 0).toFixed(1), fiber: +(+it.fiber || 0).toFixed(1),
     }));
+  },
+
+  // Prueba de conexión: hace una llamada mínima real y reporta éxito o el error exacto
+  async test() {
+    const messages = [{ role: "user", content: 'Prueba: "1 huevo". Devuelve SOLO el JSON con items.' }];
+    let res = await this._fetch(messages, true, 300);
+    if (res.status === 400) res = await this._fetch(messages, false, 300);
+    if (!res.ok) throw new Error(this._errMsg(res.status, await res.text()));
+    const parsed = this._extractJSON(await res.json());
+    if (!parsed.items || !parsed.items.length) throw new Error("Conectó, pero no devolvió items.");
+    return parsed.items[0];
   },
 };
 if (typeof window !== "undefined") window.AI = AI;

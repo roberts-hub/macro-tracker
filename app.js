@@ -786,7 +786,13 @@
     const a = Store.state.ai || {};
     showModal(`
       <h3>Asistente IA</h3>
-      <div class="banner info">Pega tu clave de API de Anthropic (empieza con <b>sk-ant-</b>). Se guarda <b>solo en este dispositivo</b> y nunca se sincroniza. Consíguela en <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.</div>
+      <div class="banner info">
+        <b>Cómo activarla (1 vez):</b><br>
+        1. Entra a <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com → API Keys</a> e inicia sesión.<br>
+        2. <b>Create Key</b>, cópiala (empieza con <b>sk-ant-</b>).<br>
+        3. Pégala aquí abajo y dale <b>Guardar y probar</b>.<br>
+        <span class="muted">La clave se guarda solo en este dispositivo y nunca se sincroniza. Necesitas saldo/créditos en tu cuenta de Anthropic.</span>
+      </div>
       <label class="field"><span class="lbl">Clave de API</span><input type="text" id="aiKey" value="${a.key || ""}" placeholder="sk-ant-..." autocomplete="off"></label>
       <label class="field"><span class="lbl">Modelo</span>
         <select id="aiModel">
@@ -794,18 +800,35 @@
           <option value="claude-sonnet-4-6" ${a.model==="claude-sonnet-4-6"?"selected":""}>Sonnet 4.6 — más preciso</option>
           <option value="claude-opus-4-8" ${a.model==="claude-opus-4-8"?"selected":""}>Opus 4.8 — máxima precisión</option>
         </select></label>
-      <div class="hint">Cada análisis de comida usa muy pocos tokens. Haiku es ideal para el uso diario.</div>
-      <button class="btn" id="aiSave">Activar IA</button>
-      ${a.enabled ? `<button class="btn secondary" id="aiDisable" style="margin-top:10px">Desactivar</button>` : ""}
+      <div id="aiTestResult" class="hint" style="margin-bottom:12px">Cada análisis usa muy pocos tokens. Haiku es ideal para el uso diario.</div>
+      <button class="btn" id="aiSave">Guardar y probar</button>
+      <button class="btn secondary" id="aiTest" style="margin-top:10px">Probar conexión</button>
+      ${a.enabled ? `<button class="btn secondary" id="aiDisable" style="margin-top:10px">Desactivar IA</button>` : ""}
     `);
-    $("#aiSave").addEventListener("click", () => {
+    const saveCfg = () => {
       const key = $("#aiKey").value.trim();
       const model = $("#aiModel").value;
-      if (!key.startsWith("sk-ant-")) { toast("La clave debe empezar con sk-ant-"); return; }
+      if (!key.startsWith("sk-ant-")) { toast("La clave debe empezar con sk-ant-"); return false; }
       Store.state.ai = { enabled: true, key, model };
       Store.save({ remote: false }); // la IA nunca se sincroniza
-      closeModal(); toast("IA activada");
-    });
+      return true;
+    };
+    const runTest = async () => {
+      const res = $("#aiTestResult");
+      res.style.color = "var(--ink-dim)"; res.textContent = "Probando conexión con la IA…";
+      try {
+        const item = await AI.test();
+        res.style.color = "var(--olive)";
+        res.textContent = `✓ Conexión exitosa. Ejemplo: ${item.name} ≈ ${Math.round(item.grams)} g, ${Math.round(item.kcal)} kcal.`;
+        return true;
+      } catch (e) {
+        res.style.color = "var(--danger)";
+        res.textContent = "✕ " + (e.message || "No se pudo conectar.");
+        return false;
+      }
+    };
+    $("#aiSave").addEventListener("click", async () => { if (saveCfg()) { const ok = await runTest(); if (ok) toast("IA activada y verificada"); } });
+    $("#aiTest").addEventListener("click", async () => { if (saveCfg()) runTest(); });
     if (a.enabled) $("#aiDisable").addEventListener("click", () => {
       Store.state.ai = { enabled: false, key: a.key, model: a.model };
       Store.save({ remote: false }); closeModal(); toast("IA desactivada");
