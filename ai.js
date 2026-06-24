@@ -4,10 +4,21 @@
 const AI = {
   SYSTEM: `Eres un nutriólogo experto en alimentos de México y Latinoamérica.
 El usuario describe en lenguaje natural lo que comió (en español). Conviértelo en una lista de alimentos con estimaciones realistas.
-Para CADA alimento devuelve: name (nombre claro y corto, ej. "Taco al pastor"), grams (gramos TOTALES consumidos según la porción descrita), kcal, protein, carbs, fat, fiber (valores TOTALES para esa cantidad, no por 100 g).
-Reglas:
-- Usa porciones típicas reales (1 taco ≈ 85 g, 1 taza de arroz cocido ≈ 158 g, 1 huevo ≈ 50 g, 1 vaso ≈ 240 ml, etc.).
-- Si dice una cantidad ("3 huevos", "dos tacos"), multiplícala.
+
+Para CADA alimento devuelve: name (nombre claro y corto, ej. "Huevo", "Taco al pastor"), quantity (la cantidad numérica indicada, ej. 4), grams (gramos TOTALES = porción unitaria × quantity), kcal, protein, carbs, fat, fiber (TODOS valores TOTALES para esa cantidad completa, NUNCA por 100 g ni por unidad).
+
+⚠️ REGLA MÁS IMPORTANTE — MULTIPLICA POR LA CANTIDAD:
+Si el usuario indica un número o palabra de cantidad (4, cuatro, dos, tres, media, un par, una docena), DEBES multiplicar la porción de UNA unidad por esa cantidad. Jamás devuelvas la porción de 1 sola unidad cuando se piden varias. Verifica al final que grams y macros correspondan a la cantidad total pedida.
+
+Ejemplos exactos (síguelos):
+- "4 huevos" → quantity 4, grams 200 (4×50), kcal 286, protein 26, carbs 2.2, fat 19, fiber 0
+- "2 tacos al pastor" → quantity 2, grams 170 (2×85), kcal 452, protein 24, carbs 36, fat 22, fiber 4
+- "3 huevos y 1 taza de arroz" → dos items: {Huevo, quantity 3, grams 150, kcal 215, ...} y {Arroz blanco cocido, quantity 1, grams 158, kcal 205, ...}
+- "media taza de avena" → quantity 0.5, grams 40
+
+Porciones unitarias de referencia: 1 huevo ≈ 50 g, 1 taco ≈ 85 g, 1 taza de arroz/avena cocidos ≈ 158 g (avena cruda 1 taza ≈ 80 g), 1 rebanada de pan ≈ 28 g, 1 vaso/agua ≈ 240 ml, 1 quesadilla ≈ 120 g.
+
+Otras reglas:
 - Sé preciso con comida mexicana (tacos, quesadillas, pozole, mole, tortas, aguas frescas, etc.).
 - No inventes alimentos que no se mencionan. Si algo es ambiguo, haz tu mejor estimación realista.
 - Redondea gramos a enteros y macros a 1 decimal.`,
@@ -21,6 +32,7 @@ Reglas:
           type: "object",
           properties: {
             name: { type: "string" },
+            quantity: { type: "number" },
             grams: { type: "number" },
             kcal: { type: "number" },
             protein: { type: "number" },
@@ -28,7 +40,7 @@ Reglas:
             fat: { type: "number" },
             fiber: { type: "number" },
           },
-          required: ["name", "grams", "kcal", "protein", "carbs", "fat", "fiber"],
+          required: ["name", "quantity", "grams", "kcal", "protein", "carbs", "fat", "fiber"],
           additionalProperties: false,
         },
       },
