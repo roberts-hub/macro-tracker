@@ -46,9 +46,9 @@ const NLP = {
     if (mlM) return { g: parseFloat(mlM[1].replace(",", ".")), note: "" };
     if (!food) return { g: Math.round(100 * qty), note: "" };
 
-    // unidad mencionada (taza, cucharada, rebanada...)
+    // unidad mencionada (taza, cucharada, rebanada, puño...). Acepta plural con "s?"
     let unit = null;
-    for (const u of this.UNIT_WORDS) if (new RegExp("\\b" + u + "\\b").test(nseg)) { unit = u.replace(/s$/, ""); break; }
+    for (const u of this.UNIT_WORDS) if (new RegExp("\\b" + u + "s?\\b").test(nseg)) { unit = u.replace(/s$/, ""); break; }
     if (unit && food.portions) {
       const matching = food.portions.filter(p => this.norm(p.label).includes(unit));
       if (matching.length) {
@@ -64,6 +64,8 @@ const NLP = {
         return { g: Math.round(port.g * mult), note: port.label };
       }
     }
+    // "puño/puñado" sin una porción de puño propia → puñado genérico (~40 g, verdura/fruta troceada)
+    if (unit === "puno" || unit === "punado") return { g: Math.round(40 * qty), note: `${qty} puño` };
     if (food.portions && food.portions[0])
       return { g: Math.round(food.portions[0].g * qty), note: `${qty}× ${food.portions[0].label}` };
     return { g: Math.round(100 * qty), note: "" };
@@ -73,7 +75,9 @@ const NLP = {
     const items = [];
     for (const seg of this.segments(text)) {
       const nseg = this.norm(seg);
-      const qty = this.parseQty(nseg);
+      // si el usuario dio gramos/ml directos, la "cantidad" es 1 (no el número de gramos)
+      const explicitG = /(\d+(?:[.,]\d+)?)\s*(g|gr|grs|gramos|ml|mililitros)\b/.test(nseg);
+      const qty = explicitG ? 1 : this.parseQty(nseg);
       const food = this.matchFood(nseg, foods);
       const { g } = this.gramsFor(nseg, food, qty);
       items.push({ raw: seg, food: food || null, grams: g > 0 ? g : 100, quantity: qty > 0 ? qty : 1, matched: !!food });

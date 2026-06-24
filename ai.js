@@ -19,7 +19,7 @@ Ejemplos exactos (síguelos):
 Porciones unitarias de referencia: 1 huevo ≈ 50 g, 1 taco ≈ 85 g, 1 taza de arroz/avena cocidos ≈ 158 g (avena cruda 1 taza ≈ 80 g), 1 rebanada de pan ≈ 28 g, 1 vaso/agua ≈ 240 ml, 1 quesadilla ≈ 120 g.
 
 MEDIDAS INFORMALES / NO EXACTAS — estímalas con sentido común (esto es clave, el usuario casi siempre describe así):
-- "un puño" / "puñado" de frutos secos (nueces, almendras, cacahuates) ≈ 30 g; un puño de fruta (fresas, mango, uvas) ≈ 80 g; un puño de hojas/ensalada ≈ 30 g.
+- "un puño" / "puñado" de frutos secos (nueces, almendras, cacahuates) ≈ 30 g; un puño de fruta (fresas, mango, uvas) ≈ 80 g; un puño de hojas/ensalada ≈ 30 g; un puño de verdura en floretes/trozos (brócoli, coliflor) ≈ 45 g. NUNCA interpretes "un puño/un trozo" como una pieza entera del alimento.
 - "un scoop"/"medida" de proteína whey ≈ 30 g (≈120 kcal, 24 g proteína); 2 scoops ≈ 60 g.
 - "un scoop"/"bola"/"cucharón" de yogurt ≈ 60 g; "una cucharada" ≈ 15 g; "una cucharadita" ≈ 5 g.
 - Piezas pequeñas por unidad: 1 nuez ≈ 5 g, 1 almendra ≈ 1.2 g, 1 fresa ≈ 12 g, 1 uva ≈ 5 g. Multiplica por la cantidad ("2 almendras" ≈ 2.4 g).
