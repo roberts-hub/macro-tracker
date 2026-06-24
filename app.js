@@ -53,6 +53,7 @@
   function renderAll() {
     if (!Store.state.profile) return;
     renderToday();
+    renderCoach();
     renderProgress();
     renderProfile();
   }
@@ -239,6 +240,74 @@
       </div>
       <div class="bar"><span style="width:${Math.min(100, pct)}%"></span></div>
     </div>`;
+  }
+
+  // ---------------- VISTA COACH (recomendaciones dinámicas) ----------------
+  function renderCoach() {
+    const t = targets();
+    const tot = Store.dayTotals(currentDate);
+    const host = $("#view-coach");
+    const rem = {
+      kcal: t.kcalTarget - tot.kcal, protein: t.proteinG - tot.protein,
+      carbs: t.carbsG - tot.carbs, fat: t.fatG - tot.fat,
+      fiber: t.fiberG - tot.fiber, water: t.waterMl - (tot.water || 0),
+    };
+    const r = (n) => Math.round(n);
+    const remCell = (label, val, unit, over) =>
+      `<div class="stat"><div class="v ${over ? "over" : ""}">${val >= 0 ? r(val) : "+" + r(-val)}${unit}</div><div class="k">${val >= 0 ? "Faltan · " : "Excedido · "}${label}</div></div>`;
+
+    // Recomendaciones por reglas (se actualizan con cada comida)
+    const tips = [];
+    if (tot.protein >= t.proteinG * 0.95) tips.push(["good", `Proteína en meta (${tot.protein}/${t.proteinG} g). Excelente para tu objetivo de músculo.`]);
+    else tips.push(["warn", `Te faltan <b>${r(rem.protein)} g de proteína</b>. Es tu macro prioritario para subir músculo.`]);
+
+    if (tot.fat > t.fatG * 1.05) tips.push(["warn", `Ya superaste la grasa (<b>+${r(tot.fat - t.fatG)} g</b>). El resto del día evita grasas (aceite, nueces, aguacate, quesos) y cierra con carbos + proteína magra.`]);
+
+    if (rem.kcal > 150) {
+      if (rem.carbs > 30) tips.push(["info", `Te faltan <b>${r(rem.kcal)} kcal</b> para tu superávit. Mételas como <b>carbohidratos</b> (faltan ${r(rem.carbs)} g): arroz, avena, papa, fruta, tortillas.`]);
+      else tips.push(["info", `Te faltan <b>${r(rem.kcal)} kcal</b> para tu superávit de hoy.`]);
+    } else if (rem.kcal < -150) tips.push(["warn", `Te pasaste <b>${r(-rem.kcal)} kcal</b> de tu objetivo (${fmt(t.kcalTarget)}).`]);
+    else tips.push(["good", `Calorías en rango: ${fmt(tot.kcal)} / ${fmt(t.kcalTarget)} kcal.`]);
+
+    if (rem.water > 500) tips.push(["info", `Toma ~${(rem.water / 1000).toFixed(1)} L más de agua hoy.`]);
+    if (rem.fiber > 10) tips.push(["info", `Suma fibra (faltan ${r(rem.fiber)} g): fruta, verdura, avena, legumbres.`]);
+
+    // Sugerencias concretas para cerrar el día
+    const sug = [];
+    if (rem.protein > 15) sug.push(`<b>Proteína</b> (${r(rem.protein)} g): ~${r(rem.protein / 0.31)} g de pechuga · o ${Math.max(1, Math.round(rem.protein / 24))} scoop(s) de whey · o 1 lata de atún + yogurt griego.`);
+    if (rem.carbs > 25 && rem.kcal > 100) sug.push(`<b>Carbohidratos</b> (${r(rem.carbs)} g): ~${(rem.carbs / 44.5).toFixed(1)} taza(s) de arroz · o 1 taza de avena + 1 plátano · o 2 papas medianas.`);
+    if (rem.fat > 12 && rem.protein <= 15 && rem.carbs <= 25) sug.push(`<b>Grasa</b> (${r(rem.fat)} g): ~${Math.max(1, Math.round(rem.fat / 14))} cda de aceite de oliva · o ${r(rem.fat)} g de nueces/aguacate.`);
+
+    const sugBlock = sug.length
+      ? `<div class="card"><h2>Para cerrar tu día</h2>${sug.map(s => `<div class="banner info" style="margin-bottom:8px">${s}</div>`).join("")}<button class="btn small" id="coachAdd" style="margin-top:4px">+ Agregar comida</button></div>`
+      : `<div class="card"><div class="banner good" style="margin:0">Día prácticamente cerrado: estás en tus metas. Buen trabajo.</div></div>`;
+
+    host.innerHTML = `
+      <div class="datenav" style="margin-bottom:14px">
+        <div class="dlabel" style="text-align:left;flex:none">Coach · ${isToday(currentDate) ? "Hoy" : friendlyDate(currentDate)}</div>
+        <div class="grow"></div>
+      </div>
+      <div class="card">
+        <h2>Te falta para tu meta</h2>
+        <div class="stat-grid">
+          ${remCell("kcal", rem.kcal, "", rem.kcal < 0)}
+          ${remCell("proteína", rem.protein, " g", false)}
+          ${remCell("carbos", rem.carbs, " g", false)}
+          ${remCell("grasa", rem.fat, " g", rem.fat < 0)}
+        </div>
+        <div class="hint" style="margin-top:12px">Se actualiza solo conforme registras comidas.</div>
+      </div>
+      <div class="card">
+        <h2>Recomendaciones de hoy</h2>
+        ${tips.map(([lvl, msg]) => `<div class="banner ${lvl}" style="margin-bottom:8px">${msg}</div>`).join("")}
+      </div>
+      ${sugBlock}
+      <div class="card">
+        <h2>Largo plazo</h2>
+        <div class="muted">Tu progreso real (peso suavizado, ritmo semanal, cumplimiento) está en <b>Progreso</b>. Regla de oro: si en 2–3 semanas no subes ~0.2–0.3 kg/sem, sube ~150 kcal/día.</div>
+      </div>
+    `;
+    const ca = $("#coachAdd"); if (ca) ca.addEventListener("click", openAddFood);
   }
 
   // ---------------- VISTA PROGRESO ----------------
