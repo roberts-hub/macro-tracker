@@ -108,21 +108,26 @@ Otras reglas:
   async _gemini(userText, maxTokens) {
     const c = this.cfg();
     const model = c.model || "gemini-2.0-flash";
+    const genCfg = { responseMimeType: "application/json", maxOutputTokens: maxTokens || 2048, temperature: 0.2 };
+    // Los modelos 2.5 "piensan" por defecto y consumen tokens de salida → desactivar
+    if (/2\.5/.test(model)) genCfg.thinkingConfig = { thinkingBudget: 0 };
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": c.key },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: this.SYSTEM }] },
         contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens || 1024, temperature: 0.2 },
+        generationConfig: genCfg,
       }),
     });
     if (!res.ok) throw new Error(this._errMsg(res.status, await res.text(), "gemini"));
     const data = await res.json();
     const cand = (data.candidates || [])[0];
     if (!cand) throw new Error("Respuesta vacía de Gemini (revisa el modelo).");
+    if (cand.finishReason === "MAX_TOKENS") throw new Error("Respuesta cortada. Intenta otra vez o usa el modelo 2.0 Flash.");
     const part = ((cand.content || {}).parts || []).find(p => p.text);
-    return part && part.text;
+    if (!part || !part.text) throw new Error("Gemini no devolvió texto (prueba el modelo 2.0 Flash).");
+    return part.text;
   },
 
   async _raw(userText, maxTokens) {
