@@ -185,6 +185,8 @@ select { -webkit-appearance: none; appearance: none; background-image: linear-gr
 .search-results { margin-top: 8px; max-height: 320px; overflow-y: auto; }
 .food-opt { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 4px; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
 .food-opt:hover { background: var(--paper-2); }
+.food-opt.quick { background: rgba(166,170,107,.1); border: 1px solid rgba(166,170,107,.35); border-radius: var(--radius-sm); margin-bottom: 8px; padding: 12px; }
+.food-opt.quick .fn { color: var(--ink); }
 .food-opt > div { min-width: 0; }
 .food-opt .fn { font-weight: 500; font-size: 14px; color: var(--ink); }
 .food-opt .fm { font-size: 11px; color: var(--ink-dim); margin-top: 2px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }

@@ -165,7 +165,7 @@
         <div class="entry">
           <div class="info" data-edit="${e.id}">
             <div class="nm">${e.name}</div>
-            <div class="mc">${e.grams} g · P ${e.protein} · C ${e.carbs} · G ${e.fat}</div>
+            <div class="mc">${e.note ? e.note + " · " : ""}${e.grams} g · P ${e.protein} · C ${e.carbs} · G ${e.fat}</div>
           </div>
           <div class="kc">${fmt(e.kcal)}</div>
           <button class="del" data-del="${e.id}">✕</button>
@@ -348,8 +348,8 @@
       </div>
 
       <label class="field">
-        <span class="lbl">Buscar alimento</span>
-        <input type="text" id="foodSearch" placeholder="pollo, arroz, huevo, whey..." autocomplete="off">
+        <span class="lbl">Buscar o escribir cantidad</span>
+        <input type="text" id="foodSearch" placeholder="ej: 4 huevos · 1 taza de arroz · pollo" autocomplete="off">
       </label>
       <div class="search-results" id="searchResults"></div>
 
@@ -376,50 +376,96 @@
     if (h < 11) return 0; if (h < 16) return 1; if (h < 21) return 2; return 3;
   }
 
+  // unidades de medida (NO incluye alimentos como huevo/taco/tortilla)
+  const MEASURE_UNITS = ["taza","tazas","cucharada","cucharadas","cda","cdas","cucharadita","cucharaditas","cdta",
+    "scoop","scoops","vaso","vasos","lata","latas","rebanada","rebanadas","filete","filetes",
+    "porcion","porciones","plato","platos","pieza","piezas","unidad","unidades","puno","punado",
+    "g","gr","grs","gramos","ml","mililitros"];
+  const STOPWORDS = ["de","del","la","el","los","las","con","y","mi","mis","un","una","uno","dos","tres","cuatro",
+    "cinco","seis","siete","ocho","medio","media","par","docena"];
+
+  function cleanTerm(nq) {
+    let t = " " + nq + " ";
+    t = t.replace(/\d+\s*\/\s*\d+/g, " ").replace(/\d+([.,]\d+)?/g, " ");
+    for (const w of [...MEASURE_UNITS, ...STOPWORDS]) t = t.replace(new RegExp("\\b" + w + "\\b", "g"), " ");
+    return t.replace(/\s+/g, " ").trim();
+  }
+
   function renderSearch(q, meal) {
     const host = $("#searchResults");
     const foods = Store.allFoods();
-    const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+    const norm = NLP.norm;
     const nq = norm(q);
-    const matches = (nq ? foods.filter(f => norm(f.name).includes(nq) || (f.aliases||[]).some(a=>norm(a).includes(nq))) : foods).slice(0, 30);
-    host.innerHTML = matches.map(f => `
+    const term = cleanTerm(nq);
+    const hasQty = /\d|\b(un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|medio|media|par|docena)\b/.test(nq);
+
+    // Sugerencia "Agregar rápido" cuando escribes cantidad + alimento (ej. "4 huevos")
+    let quick = "";
+    const best = q.trim() ? NLP.matchFood(nq, foods) : null;
+    if (best && hasQty) {
+      const g = NLP.gramsFor(nq, best, NLP.parseQty(nq)).g;
+      const m = NUTRITION.macrosFor(best, g);
+      quick = `<div class="food-opt quick" data-quick="${best.id}" data-grams="${g}" data-note="${q.trim().replace(/"/g,"&quot;")}">
+        <div><div class="fn">Agregar “${q.trim()}”</div><div class="fm">${best.name} · ${g} g · ${fmt(m.kcal)} kcal</div></div>
+        <span class="pill good">+ rápido</span></div>`;
+    }
+
+    const matches = (term ? foods.filter(f => norm(f.name).includes(term) || (f.aliases || []).some(a => norm(a).includes(term))) : foods).slice(0, 30);
+    const list = matches.map(f => `
       <div class="food-opt" data-food="${f.id}">
         <div><div class="fn">${f.name}</div><div class="fm">${f.kcal} kcal · P${f.p} C${f.c} G${f.f} /100g</div></div>
         <span class="pill">+</span>
-      </div>`).join("") || `<div class="center-empty">Sin resultados. Usa "describe lo que comiste" abajo o crea un alimento propio.</div>`;
-    $$("[data-food]", host).forEach(el => el.addEventListener("click", () => openPortion(el.dataset.food, meal)));
+      </div>`).join("");
+
+    host.innerHTML = quick + (list || (q.trim() ? `<div class="center-empty">Sin resultados para “${q.trim()}”. Usa “describe lo que comiste” abajo o crea un alimento propio.</div>` : ""));
+
+    const qty = hasQty ? NLP.parseQty(nq) : 1;
+    $$("[data-quick]", host).forEach(el => el.addEventListener("click", () => {
+      const f = Store.findFood(el.dataset.quick); const g = Number(el.dataset.grams) || 100;
+      Store.addEntry(currentDate, { foodId: f.id, name: f.name, grams: g, meal, note: el.dataset.note, ...NUTRITION.macrosFor(f, g) });
+      closeModal(); toast(`Agregado a ${meal}: ${el.dataset.note}`);
+    }));
+    $$("[data-food]", host).forEach(el => el.addEventListener("click", () => openPortion(el.dataset.food, meal, { qty, query: q })));
   }
 
-  function openPortion(foodId, meal) {
+  function openPortion(foodId, meal, opts = {}) {
     const f = Store.findFood(foodId);
     pendingFood = f;
+    const portions = f.portions || [{ label: "100 g", g: 100 }];
+    // gramos iniciales: respeta la cantidad escrita en el buscador (ej. "4 huevos")
+    let initG = portions[0] ? portions[0].g : 100;
+    let noteLabel = null;
+    if (opts.query && /\d|\b(un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|medio|media)\b/.test(NLP.norm(opts.query))) {
+      initG = NLP.gramsFor(NLP.norm(opts.query), f, opts.qty || 1).g;
+      noteLabel = opts.query.trim();
+    }
     showModal(`
       <h3>${f.name}</h3>
       <p class="muted">${f.kcal} kcal · P${f.p} · C${f.c} · G${f.f} por 100 g</p>
-      <span class="lbl" style="color:var(--text-dim);font-size:13px;font-weight:600">Porción rápida</span>
+      <span class="lbl">Porción rápida</span>
       <div class="seg" id="portionSeg" style="margin:8px 0 14px">
-        ${(f.portions||[{label:"100 g",g:100}]).map((p,i)=>`<button data-g="${p.g}" class="${i===0?'on':''}">${p.label}</button>`).join("")}
+        ${portions.map(p => `<button data-g="${p.g}" data-label="${p.label.replace(/"/g,"&quot;")}">${p.label}</button>`).join("")}
       </div>
       <label class="field"><span class="lbl">Gramos</span>
-        <input type="number" id="gramsInput" value="${(f.portions&&f.portions[0]?f.portions[0].g:100)}" inputmode="decimal"></label>
-      <div id="macroPreview" class="card" style="margin:0 0 14px;background:var(--bg-elev)"></div>
+        <input type="number" id="gramsInput" value="${initG}" inputmode="decimal"></label>
+      <div id="macroPreview" class="card" style="margin:0 0 14px;background:var(--paper)"></div>
       <button class="btn" id="confirmAdd">Agregar a ${meal}</button>
     `);
     const gi = $("#gramsInput");
     const upd = () => {
-      const g = Number(gi.value)||0; const m = NUTRITION.macrosFor(f, g);
+      const g = Number(gi.value) || 0; const m = NUTRITION.macrosFor(f, g);
       $("#macroPreview").innerHTML = `<div class="row spread"><b>${fmt(m.kcal)} kcal</b><span class="muted">P ${m.protein} · C ${m.carbs} · G ${m.fat} · Fib ${m.fiber}</span></div>`;
     };
     $$("#portionSeg button").forEach(b => b.addEventListener("click", () => {
-      $$("#portionSeg button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
-      gi.value = b.dataset.g; upd();
+      $$("#portionSeg button").forEach(x => x.classList.remove("on")); b.classList.add("on");
+      gi.value = b.dataset.g; noteLabel = b.dataset.label; upd();
     }));
-    gi.addEventListener("input", upd); upd();
+    gi.addEventListener("input", () => { noteLabel = null; upd(); }); // si edita a mano, sin nota
+    upd();
     $("#confirmAdd").addEventListener("click", () => {
-      const g = Number(gi.value)||0; if (g<=0) return;
-      const m = NUTRITION.macrosFor(f, g);
-      Store.addEntry(currentDate, { foodId:f.id, name:f.name, grams:g, meal, ...m });
-      closeModal();
+      const g = Number(gi.value) || 0; if (g <= 0) return;
+      Store.addEntry(currentDate, { foodId: f.id, name: f.name, grams: Math.round(g), meal, note: noteLabel || null, ...NUTRITION.macrosFor(f, g) });
+      closeModal(); toast(`Agregado a ${meal}: ${f.name}`);
     });
   }
 
