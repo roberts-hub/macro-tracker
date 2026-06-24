@@ -73,6 +73,14 @@ const Store = {
   },
   setWater(dateKey, ml) { this.dayLog(dateKey).water = Math.max(0, ml); this.save(); },
 
+  // ---- actividad diaria (WHOOP / manual) ----
+  dayActivity(dateKey) {
+    const l = this.dayLog(dateKey);
+    if (!l.activity) l.activity = { burned: 0, sleepH: 0, recovery: 0, strain: 0 };
+    return l.activity;
+  },
+  setActivity(dateKey, patch) { Object.assign(this.dayActivity(dateKey), patch); this.save(); },
+
   // ---- peso ----
   logWeight(dateKey, kg) {
     const i = this.state.weights.findIndex(w => w.date === dateKey);

@@ -218,6 +218,7 @@ select { -webkit-appearance: none; appearance: none; background-image: linear-gr
 .chart line { stroke: var(--line); stroke-width: 1; }
 .chart polyline { fill: none; stroke: var(--clay); stroke-width: 2; }
 .chart circle { fill: var(--card-soft); stroke: var(--clay); stroke-width: 2; }
+.chart circle.raw { fill: var(--ink-dim); stroke: none; opacity: .45; }
 .chart text { fill: var(--ink-dim); font-size: 10px; font-family: var(--sans); letter-spacing: .5px; }
 
 /* ---------- Banners ---------- */

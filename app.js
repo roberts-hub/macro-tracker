@@ -104,6 +104,8 @@
         </div>
       </div>
 
+      ${activityCard(t, tot)}
+
       ${mealBreakdownCard()}
 
       ${proteinMealCard(t)}
@@ -125,7 +127,25 @@
       const cur = Store.dayTotals(currentDate).water;
       Store.setWater(currentDate, cur + Number(b.dataset.water));
     }));
+    const ab = $("#actBurned"), asl = $("#actSleep"), ar = $("#actRec");
+    if (ab) { const saveA = () => Store.setActivity(currentDate, { burned: Number(ab.value) || 0, sleepH: Number(asl.value) || 0, recovery: Number(ar.value) || 0 }); [ab, asl, ar].forEach(x => x.addEventListener("change", saveA)); }
     renderEntries();
+  }
+
+  function activityCard(t, tot) {
+    const a = (Store.state.logs[currentDate] || {}).activity || {};
+    const burned = a.burned || 0;
+    const net = burned > 0 ? tot.kcal - burned : null;
+    return `<div class="card">
+      <div class="row spread"><h2 style="margin:0">Actividad <span class="muted" style="text-transform:none">(WHOOP)</span></h2>${burned > 0 ? `<b>${fmt(burned)} kcal</b>` : `<span class="muted">sin datos</span>`}</div>
+      ${burned > 0 ? `<div class="banner ${net >= 0 ? "good" : "warn"}" style="margin:12px 0 0">Balance real: comiste <b>${fmt(tot.kcal)}</b> − quemaste <b>${fmt(burned)}</b> = <b>${net >= 0 ? "+" : ""}${fmt(net)} kcal</b> ${net >= 0 ? "(superávit real)" : "(déficit)"}${a.sleepH ? ` · Sueño ${a.sleepH} h` : ""}${a.recovery ? ` · Recup. ${a.recovery}%` : ""}</div>` : ""}
+      <div class="row" style="gap:8px;margin-top:12px">
+        <label class="qtylab" style="flex:1">Quemadas<input type="number" id="actBurned" inputmode="decimal" value="${a.burned || ""}" placeholder="kcal"></label>
+        <label class="qtylab" style="flex:1">Sueño (h)<input type="number" id="actSleep" inputmode="decimal" step="0.1" value="${a.sleepH || ""}" placeholder="h"></label>
+        <label class="qtylab" style="flex:1">Recup. %<input type="number" id="actRec" inputmode="decimal" value="${a.recovery || ""}" placeholder="%"></label>
+      </div>
+      <div class="hint" style="margin-top:8px">Captura tus datos de WHOOP del día. La sincronización automática con tu cuenta WHOOP la podemos conectar después (requiere un paso de configuración tuyo).</div>
+    </div>`;
   }
 
   const MEAL_COLORS = { Desayuno: "var(--ochre)", Almuerzo: "var(--olive)", Cena: "var(--clay)", Snack: "var(--mauve)", Otro: "var(--umber)" };
@@ -295,18 +315,24 @@
     const W = 680, H = 170, pad = 28;
     const xs = w.map(p => new Date(p.date).getTime());
     const ys = w.map(p => p.kg);
+    // media móvil (peso "real", quita el ruido diario)
+    const win = Math.min(7, Math.max(2, Math.round(ys.length / 3)));
+    const sm = ys.map((_, i) => { const seg = ys.slice(Math.max(0, i - win + 1), i + 1); return seg.reduce((a, b) => a + b, 0) / seg.length; });
+    const all = ys.concat(sm);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys) - 0.5, maxY = Math.max(...ys) + 0.5;
+    const minY = Math.min(...all) - 0.4, maxY = Math.max(...all) + 0.4;
     const X = t => pad + ((t - minX) / (maxX - minX || 1)) * (W - pad * 2);
     const Y = v => H - pad - ((v - minY) / (maxY - minY || 1)) * (H - pad * 2);
-    const pts = w.map(p => `${X(new Date(p.date).getTime()).toFixed(0)},${Y(p.kg).toFixed(0)}`).join(" ");
-    const dots = w.map(p => `<circle cx="${X(new Date(p.date).getTime()).toFixed(0)}" cy="${Y(p.kg).toFixed(0)}" r="3"/>`).join("");
+    const rawDots = w.map((p, i) => `<circle cx="${X(xs[i]).toFixed(0)}" cy="${Y(p.kg).toFixed(0)}" r="2.5" class="raw"/>`).join("");
+    const smPts = sm.map((v, i) => `${X(xs[i]).toFixed(0)},${Y(v).toFixed(0)}`).join(" ");
     return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
       <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}"/>
-      <polyline points="${pts}"/>${dots}
+      ${rawDots}
+      <polyline points="${smPts}"/>
       <text x="${pad}" y="14">${maxY.toFixed(1)} kg</text>
       <text x="${pad}" y="${H-8}">${minY.toFixed(1)} kg</text>
-    </svg>`;
+    </svg>
+    <div class="hint" style="margin-top:6px">Línea = tendencia suavizada (tu peso "real"). Puntos = registros diarios.</div>`;
   }
 
   function adherence7() {
