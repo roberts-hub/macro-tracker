@@ -255,6 +255,25 @@ select { -webkit-appearance: none; appearance: none; background-image: linear-gr
 .nldel { background: none; border: 0; color: var(--ink-dim); font-size: 15px; padding: 6px 8px; flex-shrink: 0; }
 .nldel:hover { color: var(--danger); }
 
+/* ---------- Navegación de día ---------- */
+.datenav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+.datenav button { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--card-soft); color: var(--ink); font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.datenav button:disabled { opacity: .3; }
+.datenav .dlabel { flex: 1; text-align: center; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+
+/* ---------- Historial ---------- */
+.hist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+.hist-row:last-child { border: 0; }
+.hist-row:hover { opacity: .8; }
+.hist-d { font-weight: 500; font-size: 14px; color: var(--ink); text-transform: capitalize; }
+.hist-m { font-size: 11px; color: var(--ink-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.hist-k { font-size: 13px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hist-k b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Etiqueta IA ---------- */
+.ai-tag { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--olive); border: 1px solid rgba(166,170,107,.4); padding: 2px 7px; border-radius: 20px; margin-left: 8px; vertical-align: middle; }
+.aifood { flex: 1; }
+
 .center-empty { text-align: center; color: var(--ink-dim); padding: 34px 12px; font-size: 14px; line-height: 1.6; }
 .hint { font-size: 12px; color: var(--ink-dim); margin-top: -6px; margin-bottom: 14px; line-height: 1.5; }
 

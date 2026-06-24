@@ -8,6 +8,7 @@ const Store = {
     weights: [],            // [{date:"YYYY-MM-DD", kg:Number}]
     customFoods: [],        // alimentos creados por el usuario
     sync: { enabled: false, url: "", key: "", code: "" },
+    ai: { enabled: false, key: "", model: "claude-haiku-4-5" }, // solo local, NUNCA se sincroniza
     updatedAt: 0,
   },
   _subs: [],
@@ -116,6 +117,14 @@ const Store = {
     }
     Object.keys(meals).forEach(k => meals[k] = +meals[k].toFixed(1));
     return meals;
+  },
+
+  // Días con registro (para el historial), del más reciente al más antiguo
+  loggedDays() {
+    return Object.keys(this.state.logs)
+      .filter(k => (this.state.logs[k].entries || []).length)
+      .sort((a, b) => b.localeCompare(a))
+      .map(k => ({ date: k, ...this.dayTotals(k) }));
   },
 
   // Desglose por comida: kcal/macros de cada comida y su % del total del día

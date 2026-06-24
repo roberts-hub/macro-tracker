@@ -29,6 +29,15 @@
     const d = new Date(key + "T12:00:00");
     return d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
   }
+  function keyOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+  function isToday(key) { return key === Store.todayKey(); }
+  function changeDay(delta) {
+    const d = new Date(currentDate + "T12:00:00"); d.setDate(d.getDate() + delta);
+    const k = keyOf(d);
+    if (k > Store.todayKey()) return; // no navegar al futuro
+    currentDate = k; $("#dateLabel").textContent = friendlyDate(currentDate); renderToday();
+  }
+  function viewDay(key) { currentDate = key; $("#dateLabel").textContent = friendlyDate(currentDate); switchView("today"); }
 
   // ---------------- navegación ----------------
   function bindNav() {
@@ -60,6 +69,12 @@
     const remaining = t.kcalTarget - tot.kcal;
 
     host.innerHTML = `
+      <div class="datenav">
+        <button id="dPrev" aria-label="Día anterior">‹</button>
+        <div class="dlabel" id="dLabel">${isToday(currentDate) ? "Hoy" : friendlyDate(currentDate)}</div>
+        <button id="dNext" aria-label="Día siguiente" ${isToday(currentDate) ? "disabled" : ""}>›</button>
+      </div>
+      ${isToday(currentDate) ? "" : `<button class="btn secondary small" id="dToday" style="margin:0 auto 14px;display:block">Volver a hoy</button>`}
       <div class="card">
         <div class="kcal-ring-wrap">
           ${ring(kcalPct, fmt(tot.kcal), "de " + fmt(t.kcalTarget) + " kcal")}
@@ -94,14 +109,18 @@
       ${proteinMealCard(t)}
 
       <div class="row spread" style="margin:22px 4px 10px">
-        <h2 class="sectitle">Comidas de hoy</h2>
+        <h2 class="sectitle">Comidas del día</h2>
         <button class="btn small" id="addFoodBtn">+ Agregar</button>
       </div>
       <div id="entriesList"></div>
     `;
 
     // anillo dibujado vía dasharray ya en HTML; eventos:
+    $("#dPrev").addEventListener("click", () => changeDay(-1));
+    $("#dNext").addEventListener("click", () => changeDay(1));
+    const dToday = $("#dToday"); if (dToday) dToday.addEventListener("click", () => { currentDate = Store.todayKey(); renderToday(); });
     $("#addFoodBtn").addEventListener("click", openAddFood);
+    $("#dateLabel").textContent = friendlyDate(currentDate);
     $$("[data-water]", host).forEach(b => b.addEventListener("click", () => {
       const cur = Store.dayTotals(currentDate).water;
       Store.setWater(currentDate, cur + Number(b.dataset.water));
@@ -243,11 +262,31 @@
         <h2>Cumplimiento (últimos 7 días)</h2>
         ${adherence7()}
       </div>
+
+      <div class="card">
+        <h2>Historial de días</h2>
+        ${historyList()}
+      </div>
     `;
     $("#wAdd").addEventListener("click", () => {
       const v = parseFloat($("#wInput").value);
-      if (v > 0) { Store.logWeight(currentDate, v); }
+      if (v > 0) { Store.logWeight(Store.todayKey(), v); }
     });
+    $$("[data-day]", host).forEach(el => el.addEventListener("click", () => viewDay(el.dataset.day)));
+  }
+
+  function historyList() {
+    const days = Store.loggedDays();
+    if (!days.length) return `<div class="center-empty">Aún no hay días registrados. Lo que comas se guarda por día automáticamente.</div>`;
+    const t = targets();
+    return days.slice(0, 30).map(d => {
+      const kp = Math.round((d.kcal / t.kcalTarget) * 100);
+      return `<div class="hist-row" data-day="${d.date}">
+        <div><div class="hist-d">${friendlyDate(d.date)}${isToday(d.date) ? " · hoy" : ""}</div>
+          <div class="hist-m">P ${d.protein} · C ${d.carbs} · G ${d.fat}</div></div>
+        <div class="hist-k"><b>${fmt(d.kcal)}</b> kcal <span class="pill ${kp>=90&&kp<=110?'good':'warn'}">${kp}%</span></div>
+      </div>`;
+    }).join("");
   }
 
   function weightChart() {
@@ -314,6 +353,12 @@
       </div>
 
       <div class="card">
+        <h2>Asistente IA (describe lo que comiste)</h2>
+        <p class="muted" id="aiDesc"></p>
+        <button class="btn secondary" id="aiBtn">${Store.state.ai?.enabled ? "Configuración de IA" : "Activar IA"}</button>
+      </div>
+
+      <div class="card">
         <h2>☁︎ Sincronizar celular ↔ compu</h2>
         <p class="muted" id="syncDesc"></p>
         <button class="btn secondary" id="syncBtn">${Store.state.sync?.enabled ? "Configuración de sincronización" : "Activar sincronización"}</button>
@@ -331,7 +376,11 @@
     $("#syncDesc").textContent = Store.state.sync?.enabled
       ? `Sincronización ACTIVA con el código "${Store.state.sync.code}". Usa el mismo código en tu otro dispositivo.`
       : "Conecta una base de datos gratis (Supabase) y usa un código para ver los mismos datos en celular y computadora.";
+    $("#aiDesc").textContent = Store.state.ai?.enabled
+      ? `IA ACTIVA con el modelo ${Store.state.ai.model}. Describe tu comida en lenguaje natural y la convierte en macros.`
+      : "Conecta tu clave de Anthropic para que la IA estime los macros de cualquier platillo que describas. La clave se guarda solo en este dispositivo.";
     $("#editProfileBtn").addEventListener("click", () => openProfileEditor());
+    $("#aiBtn").addEventListener("click", openAISettings);
     $("#syncBtn").addEventListener("click", openSyncModal);
     $("#exportBtn").addEventListener("click", exportData);
     $("#importBtn").addEventListener("click", importData);
@@ -341,23 +390,28 @@
   // ---------------- AGREGAR COMIDA (modal) ----------------
   function openAddFood() {
     pendingFood = null;
+    const aiOn = window.AI && AI.ready();
     showModal(`
       <h3>Agregar comida</h3>
-      <div class="seg" id="mealSeg" style="margin:12px 0">
+      <div class="seg" id="mealSeg" style="margin:12px 0 16px">
         ${["Desayuno","Almuerzo","Cena","Snack"].map((m,i)=>`<button data-meal="${m}" class="${i===autoMeal()?'on':''}">${m}</button>`).join("")}
       </div>
 
-      <label class="field">
-        <span class="lbl">Buscar o escribir cantidad</span>
-        <input type="text" id="foodSearch" placeholder="ej: 4 huevos · 1 taza de arroz · pollo" autocomplete="off">
-      </label>
-      <div class="search-results" id="searchResults"></div>
+      <span class="lbl" style="display:block;margin-bottom:7px">Describe lo que comiste ${aiOn ? '<span class="ai-tag">IA activa</span>' : ''}</span>
+      <textarea id="nlInput" rows="3" placeholder="Ej: dos tacos al pastor, una quesadilla y un agua de horchata"></textarea>
+      <button class="btn" id="nlBtn" style="margin-top:10px">${aiOn ? "Analizar con IA" : "Analizar"}</button>
+      <div class="hint" style="margin-top:8px">
+        ${aiOn
+          ? "La IA estima los macros de cualquier platillo. Revisas antes de guardar."
+          : 'Detección básica por palabras. <a id="aiHint" href="#">Activar IA</a> para estimar cualquier platillo.'}
+      </div>
 
-      <div style="border-top:1px solid var(--line);margin:16px 0;padding-top:16px">
-        <span class="lbl" style="display:block;margin-bottom:7px">O describe lo que comiste</span>
-        <textarea id="nlInput" rows="3" placeholder="Ej: 2 huevos, 1 taza de avena, 1 scoop de whey y 1 plátano"></textarea>
-        <button class="btn small" id="nlBtn" style="margin-top:10px">Analizar y agregar</button>
-        <div class="hint" style="margin-top:8px">Detecto cantidades y alimentos automáticamente. Lo que no encuentre, lo puedes ajustar.</div>
+      <div style="border-top:1px solid var(--line);margin:18px 0;padding-top:16px">
+        <label class="field" style="margin:0">
+          <span class="lbl">O busca un alimento</span>
+          <input type="text" id="foodSearch" placeholder="ej: 4 huevos · 1 taza de arroz · pollo" autocomplete="off">
+        </label>
+        <div class="search-results" id="searchResults"></div>
       </div>
     `);
     let meal = ["Desayuno","Almuerzo","Cena","Snack"][autoMeal()];
@@ -367,8 +421,26 @@
     const search = $("#foodSearch");
     search.addEventListener("input", () => renderSearch(search.value, meal));
     renderSearch("", meal);
-    $("#nlBtn").addEventListener("click", () => { openNLReview($("#nlInput").value, meal); });
-    setTimeout(()=>search.focus(), 100);
+    $("#nlBtn").addEventListener("click", () => { analyzeDescription($("#nlInput").value, meal); });
+    const aiHint = $("#aiHint"); if (aiHint) aiHint.addEventListener("click", (e) => { e.preventDefault(); openAISettings(); });
+    setTimeout(() => $("#nlInput").focus(), 100);
+  }
+
+  // Decide IA vs heurística para "describe lo que comiste"
+  async function analyzeDescription(text, meal) {
+    if (!text.trim()) { toast("Escribe lo que comiste primero."); return; }
+    if (!(window.AI && AI.ready())) { openNLReview(text, meal); return; }
+    const btn = $("#nlBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Analizando con IA…"; }
+    try {
+      const items = await AI.parse(text, meal);
+      if (!items.length) { toast("La IA no detectó alimentos. Intenta de nuevo."); if (btn){btn.disabled=false;btn.textContent="Analizar con IA";} return; }
+      openAIReview(items, meal, text);
+    } catch (e) {
+      console.warn("IA falló:", e);
+      toast((e.message || "Error con la IA") + " Uso detección básica.");
+      openNLReview(text, meal);
+    }
   }
 
   function autoMeal() {
@@ -540,6 +612,68 @@
     });
   }
 
+  // ---------------- revisión de items estimados por IA ----------------
+  function aiRow(it) {
+    return `<div class="nlrow" data-basegr="${it.grams || 1}" data-kcal="${it.kcal}" data-p="${it.protein}" data-c="${it.carbs}" data-f="${it.fat}" data-fib="${it.fiber || 0}">
+      <div class="nlmain">
+        <input type="text" class="aifood" value="${(it.name || "").replace(/"/g, "&quot;")}" placeholder="alimento">
+        <button class="nldel" title="quitar">✕</button>
+      </div>
+      <div class="nlsub">
+        <input type="number" class="aigrams" inputmode="decimal" value="${it.grams}"><span class="nlunit">g</span>
+        <span class="nlkc"></span>
+      </div>
+    </div>`;
+  }
+
+  function openAIReview(items, meal, sourceText) {
+    showModal(`
+      <h3>Revisa lo detectado</h3>
+      <p class="muted">La IA estimó esto a partir de: “${(sourceText || "").replace(/</g, "&lt;").slice(0, 120)}”. Ajusta nombre o gramos (los macros se reescalan). Se agrega a <b>${meal}</b>.</p>
+      <div id="aiRows">${items.map(aiRow).join("")}</div>
+      <button class="btn secondary small" id="aiAddRow" style="margin:2px 0 16px">+ Otra línea</button>
+      <button class="btn" id="aiConfirm">Agregar a ${meal}</button>
+    `);
+    const scaled = (row) => {
+      const base = Number(row.dataset.basegr) || 1;
+      const g = Number(row.querySelector(".aigrams").value) || 0;
+      const r = g / base;
+      return {
+        grams: Math.round(g),
+        kcal: Math.round(Number(row.dataset.kcal) * r),
+        protein: +(Number(row.dataset.p) * r).toFixed(1),
+        carbs: +(Number(row.dataset.c) * r).toFixed(1),
+        fat: +(Number(row.dataset.f) * r).toFixed(1),
+        fiber: +(Number(row.dataset.fib) * r).toFixed(1),
+      };
+    };
+    const wire = (row) => {
+      const gi = row.querySelector(".aigrams"), kc = row.querySelector(".nlkc");
+      const upd = () => { kc.textContent = fmt(scaled(row).kcal) + " kcal"; };
+      gi.addEventListener("input", upd);
+      row.querySelector(".nldel").addEventListener("click", () => row.remove());
+      upd();
+    };
+    $$("#aiRows .nlrow").forEach(wire);
+    $("#aiAddRow").addEventListener("click", () => {
+      const host = $("#aiRows");
+      host.insertAdjacentHTML("beforeend", aiRow({ name: "", grams: 100, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }));
+      wire(host.lastElementChild);
+    });
+    $("#aiConfirm").addEventListener("click", () => {
+      const added = [];
+      $$("#aiRows .nlrow").forEach(row => {
+        const name = row.querySelector(".aifood").value.trim();
+        const m = scaled(row);
+        if (!name || m.grams <= 0) return;
+        Store.addEntry(currentDate, { foodId: null, name, meal, ...m });
+        added.push(name);
+      });
+      closeModal();
+      toast(added.length ? `Agregado a ${meal}: ${added.join(", ")}.` : "No se agregó nada.");
+    });
+  }
+
   // ---------------- editar una comida registrada ----------------
   function editEntry(id) {
     const log = Store.state.logs[currentDate]; if (!log) return;
@@ -644,6 +778,37 @@
       // primera vez: registra el peso inicial
       if (first && !Store.state.weights.length) Store.logWeight(currentDate, np.weightKg);
       Store.save(); closeModal(); switchView("today"); toast("Perfil guardado ✔");
+    });
+  }
+
+  // ---------------- IA (modal) ----------------
+  function openAISettings() {
+    const a = Store.state.ai || {};
+    showModal(`
+      <h3>Asistente IA</h3>
+      <div class="banner info">Pega tu clave de API de Anthropic (empieza con <b>sk-ant-</b>). Se guarda <b>solo en este dispositivo</b> y nunca se sincroniza. Consíguela en <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.</div>
+      <label class="field"><span class="lbl">Clave de API</span><input type="text" id="aiKey" value="${a.key || ""}" placeholder="sk-ant-..." autocomplete="off"></label>
+      <label class="field"><span class="lbl">Modelo</span>
+        <select id="aiModel">
+          <option value="claude-haiku-4-5" ${(a.model||"claude-haiku-4-5")==="claude-haiku-4-5"?"selected":""}>Haiku 4.5 — rápido y económico (recomendado)</option>
+          <option value="claude-sonnet-4-6" ${a.model==="claude-sonnet-4-6"?"selected":""}>Sonnet 4.6 — más preciso</option>
+          <option value="claude-opus-4-8" ${a.model==="claude-opus-4-8"?"selected":""}>Opus 4.8 — máxima precisión</option>
+        </select></label>
+      <div class="hint">Cada análisis de comida usa muy pocos tokens. Haiku es ideal para el uso diario.</div>
+      <button class="btn" id="aiSave">Activar IA</button>
+      ${a.enabled ? `<button class="btn secondary" id="aiDisable" style="margin-top:10px">Desactivar</button>` : ""}
+    `);
+    $("#aiSave").addEventListener("click", () => {
+      const key = $("#aiKey").value.trim();
+      const model = $("#aiModel").value;
+      if (!key.startsWith("sk-ant-")) { toast("La clave debe empezar con sk-ant-"); return; }
+      Store.state.ai = { enabled: true, key, model };
+      Store.save({ remote: false }); // la IA nunca se sincroniza
+      closeModal(); toast("IA activada");
+    });
+    if (a.enabled) $("#aiDisable").addEventListener("click", () => {
+      Store.state.ai = { enabled: false, key: a.key, model: a.model };
+      Store.save({ remote: false }); closeModal(); toast("IA desactivada");
     });
   }
 
