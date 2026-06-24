@@ -1,5 +1,5 @@
 // Service worker — cache para uso offline (PWA).
-const CACHE = "macrotrack-v9";
+const CACHE = "macrotrack-v10";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
   "./foods.js", "./nlparse.js", "./ai.js", "./nutrition.js", "./store.js", "./sync.js", "./app.js",

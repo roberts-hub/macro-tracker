@@ -48,7 +48,7 @@ window.FOOD_DB = [
   { id: "espinaca", name: "Espinaca", aliases:["espinaca","espinacas"], kcal:23, p:2.9, c:3.6, f:0.4, fib:2.2, portions:[{label:"1 taza (30 g)",g:30},{label:"100 g",g:100}] },
   { id: "ensalada_mixta", name: "Ensalada verde mixta", aliases:["ensalada","lechuga","verduras"], kcal:20, p:1.5, c:3.5, f:0.2, fib:1.8, portions:[{label:"1 plato (150 g)",g:150},{label:"100 g",g:100}] },
   { id: "tomate", name: "Tomate / jitomate", aliases:["tomate","jitomate"], kcal:18, p:0.9, c:3.9, f:0.2, fib:1.2, portions:[{label:"1 mediano (120 g)",g:120},{label:"100 g",g:100}] },
-  { id: "aguacate", name: "Aguacate / palta", aliases:["aguacate","palta"], kcal:160, p:2, c:9, f:15, fib:7, portions:[{label:"1/2 unidad (100 g)",g:100},{label:"1 unidad (200 g)",g:200}] },
+  { id: "aguacate", name: "Aguacate / palta", aliases:["aguacate","palta"], kcal:160, p:2, c:9, f:15, fib:7, portions:[{label:"1 unidad (200 g)",g:200},{label:"1/2 unidad (100 g)",g:100},{label:"100 g",g:100}] },
   { id: "zanahoria", name: "Zanahoria", aliases:["zanahoria"], kcal:41, p:0.9, c:10, f:0.2, fib:2.8, portions:[{label:"1 mediana (60 g)",g:60},{label:"100 g",g:100}] },
 
   // ----- Frutas -----

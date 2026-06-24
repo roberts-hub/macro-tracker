@@ -5,24 +5,29 @@ const NLP = {
                medio:0.5, media:0.5, "1/2":0.5, "1/4":0.25, "3/4":0.75, par:2, "media docena":6, docena:12 },
   UNIT_WORDS: ["taza","tazas","cucharada","cucharadas","cda","cdas","cucharadita","cucharaditas","cdta",
                "rebanada","rebanadas","filete","filetes","vaso","vasos","lata","latas","scoop","scoops",
-               "puño","punado","puno","pieza","piezas","unidad","unidades","huevo","huevos","tortilla",
+               "puño","punado","puno","punito","punitos","puñado","pieza","piezas","unidad","unidades","huevo","huevos","tortilla",
                "tortillas","porcion","porciones","plato","platos","barra","barras","taco","tacos","bolillo"],
 
   norm: s => (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""),
 
   parseQty(nseg) {
-    let m = nseg.match(/(\d+)\s*\/\s*(\d+)/);            // fracción 1/2
+    const half = /\by\s+(media|medio)\b/.test(nseg);    // "1 taza y media" = 1.5
+    let m = nseg.match(/(\d+)\s*\/\s*(\d+)/);            // fracción 1/2, 3/4
     if (m) return parseInt(m[1]) / parseInt(m[2]);
+    // fracción en palabras: "tres cuartos", "un cuarto", "dos tercios", "un octavo"
+    m = nseg.match(/\b(un|una|uno|dos|tres|cuatro|cinco)\s+(cuartos?|tercios?|octavos?)\b/);
+    if (m) { const n = this.NUM_WORDS[m[1]] || 1; const base = m[2][0] === "c" ? 0.25 : m[2][0] === "t" ? 1 / 3 : 0.125; return +(n * base).toFixed(3); }
     m = nseg.match(/(\d+(?:[.,]\d+)?)/);                 // número
-    if (m) return parseFloat(m[1].replace(",", "."));
+    if (m) { let n = parseFloat(m[1].replace(",", ".")); if (half) n += 0.5; return n; }
     for (const w of Object.keys(this.NUM_WORDS))         // palabra (un, dos, media...)
-      if (new RegExp("\\b" + w.replace(/\//g,"\\/") + "\\b").test(nseg)) return this.NUM_WORDS[w];
+      if (new RegExp("\\b" + w.replace(/\//g, "\\/") + "\\b").test(nseg)) { let n = this.NUM_WORDS[w]; if (half && n >= 1) n += 0.5; return n; }
     return 1;
   },
 
   // Divide en segmentos por comas, saltos, "y", "con", "más", "+"
   segments(text) {
-    return text.split(/[\n,;]+|\s+y\s+|\s+con\s+|\s+mas\s+|\s+más\s+|\s*\+\s*/i)
+    // No partir en "y media/medio" (es "uno y medio"), sí en el resto
+    return text.split(/[\n,;]+|\s+y\s+(?!media\b|medio\b)|\s+con\s+|\s+mas\s+|\s+más\s+|\s*\+\s*/i)
                .map(s => s.trim()).filter(s => s.length > 1);
   },
 
@@ -65,7 +70,7 @@ const NLP = {
       }
     }
     // Medidas genéricas cuando el alimento no tiene esa porción propia
-    if (unit === "puno" || unit === "punado") return { g: Math.round(40 * qty) };   // puñado verdura/fruta troceada
+    if (unit === "puno" || unit === "punado" || unit === "punito") return { g: Math.round(40 * qty) };   // puñado verdura/fruta troceada
     if (unit === "cucharada" || unit === "cda") return { g: Math.round(15 * qty) };  // cucharada
     if (unit === "cucharadita" || unit === "cdta") return { g: Math.round(5 * qty) }; // cucharadita
     if (food.portions && food.portions[0])
