@@ -8,7 +8,7 @@ const Store = {
     weights: [],            // [{date:"YYYY-MM-DD", kg:Number}]
     customFoods: [],        // alimentos creados por el usuario
     sync: { enabled: false, url: "", key: "", code: "" },
-    ai: { enabled: false, key: "", model: "claude-haiku-4-5" }, // solo local, NUNCA se sincroniza
+    ai: { enabled: false, provider: "gemini", key: "", model: "gemini-2.0-flash" }, // solo local, NUNCA se sincroniza
     updatedAt: 0,
   },
   _subs: [],

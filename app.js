@@ -782,34 +782,64 @@
   }
 
   // ---------------- IA (modal) ----------------
+  const AI_PROVIDERS = {
+    gemini: {
+      label: "Google Gemini (gratis)",
+      keyHint: "Empieza con AIza…",
+      link: "https://aistudio.google.com/apikey",
+      linkText: "aistudio.google.com/apikey",
+      steps: `1. Entra a <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> e inicia sesión con tu cuenta de Google.<br>
+              2. <b>Create API key</b> y cópiala.<br>
+              3. Pégala abajo y dale <b>Guardar y probar</b>. <b>Gratis</b>, sin tarjeta.`,
+      models: [["gemini-2.0-flash", "2.0 Flash — rápido (recomendado)"], ["gemini-2.5-flash", "2.5 Flash — más nuevo"], ["gemini-1.5-flash", "1.5 Flash — alternativa"]],
+      defaultModel: "gemini-2.0-flash",
+    },
+    anthropic: {
+      label: "Anthropic (Claude)",
+      keyHint: "Empieza con sk-ant-…",
+      link: "https://console.anthropic.com/settings/keys",
+      linkText: "console.anthropic.com",
+      steps: `1. Entra a <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com → API Keys</a>.<br>
+              2. <b>Create Key</b>, cópiala (empieza con <b>sk-ant-</b>).<br>
+              3. Pégala abajo y dale <b>Guardar y probar</b>. <span class="muted">Requiere saldo de API (aparte de tu plan de Claude).</span>`,
+      models: [["claude-haiku-4-5", "Haiku 4.5 — rápido y económico"], ["claude-sonnet-4-6", "Sonnet 4.6 — más preciso"], ["claude-opus-4-8", "Opus 4.8 — máxima precisión"]],
+      defaultModel: "claude-haiku-4-5",
+    },
+  };
+
   function openAISettings() {
     const a = Store.state.ai || {};
+    const prov = a.provider || "gemini";
+    const P = AI_PROVIDERS[prov];
+    const curModel = (P.models.some(m => m[0] === a.model)) ? a.model : P.defaultModel;
     showModal(`
       <h3>Asistente IA</h3>
-      <div class="banner info">
-        <b>Cómo activarla (1 vez):</b><br>
-        1. Entra a <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com → API Keys</a> e inicia sesión.<br>
-        2. <b>Create Key</b>, cópiala (empieza con <b>sk-ant-</b>).<br>
-        3. Pégala aquí abajo y dale <b>Guardar y probar</b>.<br>
-        <span class="muted">La clave se guarda solo en este dispositivo y nunca se sincroniza. Necesitas saldo/créditos en tu cuenta de Anthropic.</span>
-      </div>
-      <label class="field"><span class="lbl">Clave de API</span><input type="text" id="aiKey" value="${a.key || ""}" placeholder="sk-ant-..." autocomplete="off"></label>
-      <label class="field"><span class="lbl">Modelo</span>
-        <select id="aiModel">
-          <option value="claude-haiku-4-5" ${(a.model||"claude-haiku-4-5")==="claude-haiku-4-5"?"selected":""}>Haiku 4.5 — rápido y económico (recomendado)</option>
-          <option value="claude-sonnet-4-6" ${a.model==="claude-sonnet-4-6"?"selected":""}>Sonnet 4.6 — más preciso</option>
-          <option value="claude-opus-4-8" ${a.model==="claude-opus-4-8"?"selected":""}>Opus 4.8 — máxima precisión</option>
+      <label class="field"><span class="lbl">Proveedor</span>
+        <select id="aiProvider">
+          ${Object.entries(AI_PROVIDERS).map(([k, v]) => `<option value="${k}" ${k===prov?"selected":""}>${v.label}</option>`).join("")}
         </select></label>
-      <div id="aiTestResult" class="hint" style="margin-bottom:12px">Cada análisis usa muy pocos tokens. Haiku es ideal para el uso diario.</div>
+      <div class="banner info"><b>Cómo activarla (1 vez):</b><br>${P.steps}<br><span class="muted">La clave se guarda solo en este dispositivo y nunca se sincroniza.</span></div>
+      <label class="field"><span class="lbl">Clave de API</span><input type="text" id="aiKey" value="${a.key || ""}" placeholder="${P.keyHint}" autocomplete="off"></label>
+      <label class="field"><span class="lbl">Modelo</span>
+        <select id="aiModel">${P.models.map(m => `<option value="${m[0]}" ${m[0]===curModel?"selected":""}>${m[1]}</option>`).join("")}</select></label>
+      <div id="aiTestResult" class="hint" style="margin-bottom:12px">Cada análisis usa muy pocos tokens.</div>
       <button class="btn" id="aiSave">Guardar y probar</button>
       <button class="btn secondary" id="aiTest" style="margin-top:10px">Probar conexión</button>
       ${a.enabled ? `<button class="btn secondary" id="aiDisable" style="margin-top:10px">Desactivar IA</button>` : ""}
     `);
+    // cambiar proveedor recarga el modal con sus instrucciones/modelos
+    $("#aiProvider").addEventListener("change", (e) => {
+      const np = e.target.value;
+      Store.state.ai = { ...(Store.state.ai || {}), provider: np, model: AI_PROVIDERS[np].defaultModel, key: $("#aiKey").value.trim() };
+      Store.save({ remote: false });
+      openAISettings();
+    });
     const saveCfg = () => {
+      const provider = $("#aiProvider").value;
       const key = $("#aiKey").value.trim();
       const model = $("#aiModel").value;
-      if (!key.startsWith("sk-ant-")) { toast("La clave debe empezar con sk-ant-"); return false; }
-      Store.state.ai = { enabled: true, key, model };
+      if (!key) { toast("Pega tu clave de API"); return false; }
+      Store.state.ai = { enabled: true, provider, key, model };
       Store.save({ remote: false }); // la IA nunca se sincroniza
       return true;
     };
@@ -830,7 +860,7 @@
     $("#aiSave").addEventListener("click", async () => { if (saveCfg()) { const ok = await runTest(); if (ok) toast("IA activada y verificada"); } });
     $("#aiTest").addEventListener("click", async () => { if (saveCfg()) runTest(); });
     if (a.enabled) $("#aiDisable").addEventListener("click", () => {
-      Store.state.ai = { enabled: false, key: a.key, model: a.model };
+      Store.state.ai = { enabled: false, provider: a.provider || "gemini", key: a.key, model: a.model };
       Store.save({ remote: false }); closeModal(); toast("IA desactivada");
     });
   }
