@@ -66,6 +66,7 @@ window.FOOD_DB = [
 
   // ----- Suplementos / extras -----
   { id: "whey", name: "Proteína whey (polvo)", aliases:["whey","proteina","scoop","batido"], kcal:400, p:80, c:8, f:6, fib:1, portions:[{label:"1 scoop (30 g)",g:30},{label:"2 scoops (60 g)",g:60},{label:"100 g",g:100}] },
+  { id: "creatina", name: "Creatina", aliases:["creatina","creatine"], kcal:0, p:0, c:0, f:0, fib:0, portions:[{label:"1 scoop (5 g)",g:5},{label:"100 g",g:100}] },
   { id: "miel", name: "Miel", aliases:["miel"], kcal:304, p:0.3, c:82, f:0, fib:0.2, portions:[{label:"1 cda (21 g)",g:21},{label:"100 g",g:100}] },
   { id: "azucar", name: "Azúcar", aliases:["azucar"], kcal:387, p:0, c:100, f:0, fib:0, portions:[{label:"1 cdta (4 g)",g:4},{label:"1 cda (12 g)",g:12}] },
   { id: "chocolate", name: "Chocolate negro 70%", aliases:["chocolate"], kcal:579, p:7.8, c:46, f:38, fib:11, portions:[{label:"1 porción (25 g)",g:25},{label:"100 g",g:100}] },

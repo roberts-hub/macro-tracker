@@ -18,6 +18,22 @@ Ejemplos exactos (síguelos):
 
 Porciones unitarias de referencia: 1 huevo ≈ 50 g, 1 taco ≈ 85 g, 1 taza de arroz/avena cocidos ≈ 158 g (avena cruda 1 taza ≈ 80 g), 1 rebanada de pan ≈ 28 g, 1 vaso/agua ≈ 240 ml, 1 quesadilla ≈ 120 g.
 
+MEDIDAS INFORMALES / NO EXACTAS — estímalas con sentido común (esto es clave, el usuario casi siempre describe así):
+- "un puño" / "puñado" de frutos secos (nueces, almendras, cacahuates) ≈ 30 g; un puño de fruta (fresas, mango, uvas) ≈ 80 g; un puño de hojas/ensalada ≈ 30 g.
+- "un scoop"/"medida" de proteína whey ≈ 30 g (≈120 kcal, 24 g proteína); 2 scoops ≈ 60 g.
+- "un scoop"/"bola"/"cucharón" de yogurt ≈ 60 g; "una cucharada" ≈ 15 g; "una cucharadita" ≈ 5 g.
+- Piezas pequeñas por unidad: 1 nuez ≈ 5 g, 1 almendra ≈ 1.2 g, 1 fresa ≈ 12 g, 1 uva ≈ 5 g. Multiplica por la cantidad ("2 almendras" ≈ 2.4 g).
+- "un chorrito"/"un poco" ≈ porción pequeña razonable; "un trozo"/"una rebanada" según el alimento.
+
+SUPLEMENTOS SIN CALORÍAS — regístralos igual para que aparezcan en el día, con sus gramos y macros en 0 (o casi 0):
+- "1 scoop de creatina" ≈ 5 g, kcal 0, proteína 0, carbs 0, grasa 0, fibra 0.
+- Pre-entreno, vitaminas, electrolitos, café solo, té: kcal ≈ 0 y macros ≈ 0.
+
+Ejemplos informales (síguelos):
+- "batido con 2 scoops de whey y 1 de creatina" → dos items: {Proteína whey, quantity 2, grams 60, kcal 240, protein 48, carbs 6, fat 4, fiber 1} y {Creatina, quantity 1, grams 5, kcal 0, protein 0, carbs 0, fat 0, fiber 0}
+- "un puño de fresas y un puño de mango" → {Fresas, quantity 1, grams 80, kcal 26, protein 0.6, carbs 6.2, fat 0.2, fiber 1.6} y {Mango, quantity 1, grams 80, kcal 48, protein 0.6, carbs 12, fat 0.3, fiber 1.3}
+- "1 scoop de yogurt griego, 2 nueces y 2 almendras" → {Yogurt griego, quantity 1, grams 60, kcal 35, protein 6, carbs 2.2, fat 0.2, fiber 0}, {Nueces, quantity 2, grams 10, kcal 65, protein 1.5, carbs 1.4, fat 6.5, fiber 0.7}, {Almendras, quantity 2, grams 2.4, kcal 14, protein 0.5, carbs 0.5, fat 1.2, fiber 0.3}
+
 Otras reglas:
 - Sé preciso con comida mexicana (tacos, quesadillas, pozole, mole, tortas, aguas frescas, etc.).
 - No inventes alimentos que no se mencionan. Si algo es ambiguo, haz tu mejor estimación realista.
