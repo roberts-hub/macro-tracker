@@ -333,6 +333,25 @@
   }
   function shortDate(key){ const d=new Date(key+"T12:00:00"); return d.toLocaleDateString("es-MX",{weekday:"short",day:"numeric"}); }
 
+  function bodyCompCard(p) {
+    if (!p.bodyFat && !p.smm) return "";
+    const w = p.weightKg, hM = (p.heightCm || 0) / 100;
+    const ffm = p.bodyFat ? +(w * (1 - p.bodyFat / 100)).toFixed(1) : null;
+    const ffmi = (ffm && hM) ? +(ffm / (hM * hM)).toFixed(1) : null;
+    const fatKg = p.bodyFat ? +(w * p.bodyFat / 100).toFixed(1) : null;
+    return `<div class="card">
+      <h2>Composición corporal <span class="muted" style="text-transform:none">(InBody)</span></h2>
+      <div class="stat-grid">
+        ${p.bodyFat ? `<div class="stat"><div class="v">${p.bodyFat}%</div><div class="k">Grasa corporal</div></div>` : ""}
+        ${fatKg != null ? `<div class="stat"><div class="v">${fatKg} kg</div><div class="k">Masa grasa</div></div>` : ""}
+        ${p.smm ? `<div class="stat"><div class="v">${p.smm} kg</div><div class="k">Músculo (SMM)</div></div>` : ""}
+        ${ffm != null ? `<div class="stat"><div class="v">${ffm} kg</div><div class="k">Masa libre de grasa</div></div>` : ""}
+        ${ffmi != null ? `<div class="stat"><div class="v">${ffmi}</div><div class="k">FFMI</div></div>` : ""}
+      </div>
+      <div class="hint" style="margin-top:12px">Tu objetivo: subir SMM manteniendo % grasa bajo. Vuelve a medirte cada 4–6 semanas y actualiza estos datos para ver el progreso.</div>
+    </div>`;
+  }
+
   // ---------------- VISTA PERFIL ----------------
   function renderProfile() {
     const p = Store.state.profile;
@@ -351,6 +370,8 @@
         </div>
         <button class="btn secondary" style="margin-top:14px" id="editProfileBtn">Editar perfil y metas</button>
       </div>
+
+      ${bodyCompCard(p)}
 
       <div class="card">
         <h2>Asistente IA (describe lo que comiste)</h2>
@@ -395,6 +416,7 @@
       <h3>Agregar comida</h3>
       <div class="seg" id="mealSeg" style="margin:12px 0 16px">
         ${["Desayuno","Almuerzo","Cena","Snack"].map((m,i)=>`<button data-meal="${m}" class="${i===autoMeal()?'on':''}">${m}</button>`).join("")}
+        ${aiOn ? `<button data-meal="auto" style="flex-basis:100%">Todo el día (la IA reparte)</button>` : ""}
       </div>
 
       <span class="lbl" style="display:block;margin-bottom:7px">Describe lo que comiste ${aiOn ? '<span class="ai-tag">IA activa</span>' : ''}</span>
@@ -463,7 +485,9 @@
     return t.replace(/\s+/g, " ").trim();
   }
 
+  let _offTimer = null, _offSeq = 0, _offCache = [];
   function renderSearch(q, meal) {
+    if (meal === "auto") meal = MEAL_OPTS[autoMeal()]; // el buscador necesita un tiempo concreto
     const host = $("#searchResults");
     const foods = Store.allFoods();
     const norm = NLP.norm;
@@ -489,7 +513,8 @@
         <span class="pill">+</span>
       </div>`).join("");
 
-    host.innerHTML = quick + (list || (q.trim() ? `<div class="center-empty">Sin resultados para “${q.trim()}”. Usa “describe lo que comiste” abajo o crea un alimento propio.</div>` : ""));
+    const wantOff = q.trim().length >= 3 && window.OFF;
+    host.innerHTML = quick + list + (wantOff ? `<div id="offResults"></div>` : (q.trim() && !list && !quick ? `<div class="center-empty">Escribe al menos 3 letras o usa “describe lo que comiste”.</div>` : ""));
 
     const qty = hasQty ? NLP.parseQty(nq) : 1;
     $$("[data-quick]", host).forEach(el => el.addEventListener("click", () => {
@@ -498,10 +523,31 @@
       closeModal(); toast(`Agregado a ${meal}: ${el.dataset.note}`);
     }));
     $$("[data-food]", host).forEach(el => el.addEventListener("click", () => openPortion(el.dataset.food, meal, { qty, query: q })));
+
+    // Búsqueda en base global (Open Food Facts), con debounce
+    if (wantOff) {
+      const seq = ++_offSeq;
+      clearTimeout(_offTimer);
+      _offTimer = setTimeout(async () => {
+        const box = document.getElementById("offResults"); if (!box) return;
+        box.innerHTML = `<div class="meal-head">Base global · Open Food Facts</div><div class="muted" style="padding:6px 4px">Buscando…</div>`;
+        const results = await OFF.search(q);
+        if (seq !== _offSeq) return;
+        const box2 = document.getElementById("offResults"); if (!box2) return;
+        if (!results.length) { box2.innerHTML = ""; return; }
+        _offCache = results;
+        box2.innerHTML = `<div class="meal-head">Base global · Open Food Facts</div>` + results.map((r, i) => `
+          <div class="food-opt" data-offidx="${i}">
+            <div><div class="fn">${r.name}</div><div class="fm">${r.kcal} kcal · P${r.p} C${r.c} G${r.f} /100g</div></div>
+            <span class="pill">+</span></div>`).join("");
+        $$("[data-offidx]", box2).forEach(el => el.addEventListener("click", () => openPortion(_offCache[Number(el.dataset.offidx)], meal, { qty, query: q })));
+      }, 450);
+    }
   }
 
   function openPortion(foodId, meal, opts = {}) {
-    const f = Store.findFood(foodId);
+    const f = typeof foodId === "object" ? foodId : Store.findFood(foodId);
+    if (!f) return;
     pendingFood = f;
     const portions = f.portions || [{ label: "100 g", g: 100 }];
     // gramos iniciales: respeta la cantidad escrita en el buscador (ej. "4 huevos")
@@ -569,6 +615,7 @@
   }
 
   function openNLReview(text, meal) {
+    if (meal === "auto") meal = MEAL_OPTS[autoMeal()]; // modo básico no reparte; usa el tiempo actual
     if (!text.trim()) { toast("Escribe lo que comiste primero."); return; }
     const foods = Store.allFoods();
     const items = NLP.parse(text, foods);
@@ -627,10 +674,13 @@
   // ---------------- revisión de items estimados por IA ----------------
   function trimNum(n) { return (Math.round(n * 100) / 100).toString(); }
 
-  function aiRow(it) {
+  const MEAL_OPTS = ["Desayuno", "Almuerzo", "Cena", "Snack"];
+  function aiRow(it, defMeal) {
     const q = it.quantity && it.quantity > 0 ? it.quantity : 1;
     const baseGr = it.grams || 1;
     const perUnit = baseGr / q;
+    const meal = it.meal || defMeal || "Snack";
+    const opts = MEAL_OPTS.map(m => `<option ${m === meal ? "selected" : ""}>${m}</option>`).join("");
     return `<div class="nlrow" data-perunit="${perUnit}" data-basegr="${baseGr}" data-kcal="${it.kcal}" data-p="${it.protein}" data-c="${it.carbs}" data-f="${it.fat}" data-fib="${it.fiber || 0}">
       <div class="nlmain">
         <input type="text" class="aifood" value="${(it.name || "").replace(/"/g, "&quot;")}" placeholder="alimento">
@@ -639,18 +689,21 @@
       <div class="nlsub">
         <label class="qtylab">Cantidad<input type="number" class="aiqty" inputmode="decimal" step="any" value="${trimNum(q)}"></label>
         <label class="qtylab">Gramos<input type="number" class="aigrams" inputmode="decimal" value="${it.grams}"></label>
+        <label class="qtylab">Comida<select class="aimeal">${opts}</select></label>
         <span class="nlkc"></span>
       </div>
     </div>`;
   }
 
   function openAIReview(items, meal, sourceText) {
+    const auto = meal === "auto";
+    const defMeal = auto ? MEAL_OPTS[autoMeal()] : meal;
     showModal(`
       <h3>Revisa lo detectado</h3>
-      <p class="muted">La IA estimó esto de: “${(sourceText || "").replace(/</g, "&lt;").slice(0, 120)}”. Revisa la <b>cantidad</b> y los gramos (todo se reescala). Se agrega a <b>${meal}</b>.</p>
-      <div id="aiRows">${items.map(aiRow).join("")}</div>
+      <p class="muted">${auto ? "La IA repartió cada alimento por tiempo de comida (puedes cambiarlo)." : `Se agrega a <b>${meal}</b>.`} Revisa cantidad y gramos (todo se reescala).</p>
+      <div id="aiRows">${items.map(it => aiRow(it, defMeal)).join("")}</div>
       <button class="btn secondary small" id="aiAddRow" style="margin:2px 0 16px">+ Otra línea</button>
-      <button class="btn" id="aiConfirm">Agregar a ${meal}</button>
+      <button class="btn" id="aiConfirm">Agregar${auto ? "" : ` a ${meal}`}</button>
     `);
     const macrosFor = (row, grams) => {
       const r = grams / (Number(row.dataset.basegr) || 1);
@@ -679,7 +732,7 @@
     $$("#aiRows .nlrow").forEach(wire);
     $("#aiAddRow").addEventListener("click", () => {
       const host = $("#aiRows");
-      host.insertAdjacentHTML("beforeend", aiRow({ name: "", quantity: 1, grams: 100, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }));
+      host.insertAdjacentHTML("beforeend", aiRow({ name: "", quantity: 1, grams: 100, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }, defMeal));
       wire(host.lastElementChild);
     });
     $("#aiConfirm").addEventListener("click", () => {
@@ -687,14 +740,15 @@
       $$("#aiRows .nlrow").forEach(row => {
         const name = row.querySelector(".aifood").value.trim();
         const qty = Number(row.querySelector(".aiqty").value) || 1;
+        const rowMeal = row.querySelector(".aimeal").value;
         const m = macrosFor(row, Number(row.querySelector(".aigrams").value) || 0);
         if (!name || m.grams <= 0) return;
         const note = qty && Math.abs(qty - 1) > 0.01 ? `${trimNum(qty)} ×` : null;
-        Store.addEntry(currentDate, { foodId: null, name, meal, note, ...m });
-        added.push(note ? `${name} (${trimNum(qty)}×)` : name);
+        Store.addEntry(currentDate, { foodId: null, name, meal: rowMeal, note, ...m });
+        added.push(name);
       });
       closeModal();
-      toast(added.length ? `Agregado a ${meal}: ${added.join(", ")}.` : "No se agregó nada.");
+      toast(added.length ? `Agregado: ${added.join(", ")}.` : "No se agregó nada.");
     });
   }
 
@@ -757,9 +811,10 @@
   function openOnboarding() { openProfileEditor(true); }
 
   function openProfileEditor(first = false) {
-    const p = Store.state.profile || {
-      weightKg: 77, heightCm: 180, age: 25, sex: "male", activity: "moderado",
-      surplusKcal: 250, proteinPerKg: 2.0, fatPerKg: 1.0, bmrOverride: null,
+    const p = Store.state.profile || {  // valores de tu InBody (23/06/2026) como punto de partida
+      weightKg: 77.3, heightCm: 181, age: 22, sex: "male", activity: "moderado",
+      surplusKcal: 250, proteinPerKg: 2.2, fatPerKg: 1.0, bmrOverride: 1859,
+      bodyFat: 10.9, smm: 39.7, goal: "muscle_gain",
     };
     showModal(`
       <h3>${first ? "Configura tu perfil" : "Editar perfil y metas"}</h3>
@@ -776,6 +831,10 @@
       <label class="field"><span class="lbl">BMR medido (InBody) — opcional, más preciso</span>
         <input type="number" id="pfBmr" value="${p.bmrOverride||""}" placeholder="ej. 1859"></label>
       <div class="two">
+        <label class="field"><span class="lbl">% Grasa corporal (InBody)</span><input type="number" id="pfBF" value="${p.bodyFat||""}" step="0.1" placeholder="ej. 10.9" inputmode="decimal"></label>
+        <label class="field"><span class="lbl">Músculo esquelético SMM (kg)</span><input type="number" id="pfSMM" value="${p.smm||""}" step="0.1" placeholder="ej. 39.7" inputmode="decimal"></label>
+      </div>
+      <div class="two">
         <label class="field"><span class="lbl">Superávit (kcal)</span><input type="number" id="pfSur" value="${p.surplusKcal}"></label>
         <label class="field"><span class="lbl">Proteína (g/kg)</span><input type="number" id="pfPro" value="${p.proteinPerKg}" step="0.1" inputmode="decimal"></label>
       </div>
@@ -783,12 +842,13 @@
       <div id="pfPreview" class="banner info"></div>
       <button class="btn" id="pfSave">Guardar</button>
     `);
-    const fields = ["pfW","pfH","pfA","pfS","pfAct","pfBmr","pfSur","pfPro"];
+    const fields = ["pfW","pfH","pfA","pfS","pfAct","pfBmr","pfBF","pfSMM","pfSur","pfPro"];
     const read = () => ({
       weightKg:Number($("#pfW").value)||0, heightCm:Number($("#pfH").value)||0,
       age:Number($("#pfA").value)||0, sex:$("#pfS").value, activity:$("#pfAct").value,
       bmrOverride:Number($("#pfBmr").value)||null, surplusKcal:Number($("#pfSur").value)||0,
-      proteinPerKg:Number($("#pfPro").value)||2.0, fatPerKg:p.fatPerKg||1.0, goal:"muscle_gain",
+      proteinPerKg:Number($("#pfPro").value)||2.0, fatPerKg:p.fatPerKg||1.0,
+      bodyFat:Number($("#pfBF").value)||null, smm:Number($("#pfSMM").value)||null, goal:"muscle_gain",
     });
     const preview = () => {
       const t = NUTRITION.computeTargets(read());

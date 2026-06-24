@@ -55,6 +55,7 @@ Otras reglas:
             carbs: { type: "number" },
             fat: { type: "number" },
             fiber: { type: "number" },
+            meal: { type: "string", enum: ["Desayuno", "Almuerzo", "Cena", "Snack"] },
           },
           required: ["name", "quantity", "grams", "kcal", "protein", "carbs", "fat", "fiber"],
           additionalProperties: false,
@@ -70,7 +71,10 @@ Otras reglas:
   provider() { return this.cfg().provider || "gemini"; },
 
   _userMsg(text, meal) {
-    return `Comida del tiempo "${meal}". Texto del usuario: ${text}\n\nDevuelve SOLO un objeto JSON con la forma {"items":[{name, quantity, grams, kcal, protein, carbs, fat, fiber}, ...]}.`;
+    const mealInstr = meal === "auto"
+      ? `Infiere el "meal" (tiempo de comida) de CADA alimento por el contexto: Desayuno, Almuerzo, Cena o Snack. Si el usuario describe todo el día, repártelos en sus tiempos correspondientes.`
+      : `Asigna meal="${meal}" a todos los items.`;
+    return `${mealInstr}\nTexto del usuario: ${text}\n\nDevuelve SOLO un objeto JSON {"items":[{name, quantity, grams, kcal, protein, carbs, fat, fiber, meal}, ...]}.`;
   },
 
   _errMsg(status, body, provider) {
@@ -145,11 +149,13 @@ Otras reglas:
 
   async parse(text, meal) {
     const parsed = this._extractJSON(await this._raw(this._userMsg(text, meal), 1024));
+    const MEALS = ["Desayuno", "Almuerzo", "Cena", "Snack"];
     return (parsed.items || []).map(it => ({
       name: it.name, quantity: +(+it.quantity) > 0 ? +it.quantity : 1,
       grams: Math.round(it.grams) || 0, kcal: Math.round(it.kcal) || 0,
       protein: +(+it.protein || 0).toFixed(1), carbs: +(+it.carbs || 0).toFixed(1),
       fat: +(+it.fat || 0).toFixed(1), fiber: +(+it.fiber || 0).toFixed(1),
+      meal: MEALS.includes(it.meal) ? it.meal : null,
     })).filter(it => it.name);
   },
 
