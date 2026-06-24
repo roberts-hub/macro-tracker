@@ -242,6 +242,33 @@
     </div>`;
   }
 
+  // Arma una comida que cierra los faltantes del día (proteína magra → carbos → grasa de relleno)
+  function buildMeal() {
+    const t = targets(), tot = Store.dayTotals(currentDate);
+    let rk = t.kcalTarget - tot.kcal, rp = t.proteinG - tot.protein, rc = t.carbsG - tot.carbs, rf = t.fatG - tot.fat;
+    const F = id => Store.findFood(id);
+    const items = [];
+    const add = (food, grams) => {
+      grams = Math.round(grams);
+      if (!food || grams < 5) return;
+      const m = NUTRITION.macrosFor(food, grams);
+      items.push({ name: food.name, quantity: 1, grams, meal: MEAL_OPTS[autoMeal()], ...m });
+      rk -= m.kcal; rp -= m.protein; rc -= m.carbs; rf -= m.fat;
+    };
+    if (rp > 10) { const f = F("pollo_pechuga"); if (f) add(f, Math.min(300, rp / (f.p / 100))); }       // proteína magra
+    if (rc > 15 && rk > 50) { const f = F("arroz_blanco"); if (f) add(f, Math.min(450, rc / (f.c / 100))); } // carbos
+    if (rc > 15 && rk > 50) { const f = F("platano"); if (f) add(f, Math.min(240, rc / (f.c / 100))); }     // más carbos (fruta)
+    if (rf > 10 && rk > 60) { const f = F("aceite_oliva"); if (f) add(f, Math.min(rf / (f.f / 100), rk / 8.84)); } // grasa de relleno si sobra presupuesto
+    if (rk > 80 && !items.length) { const f = F("avena"); if (f) add(f, Math.min(120, rk / (f.kcal / 100))); }
+    return items;
+  }
+
+  function openMealPlan() {
+    const items = buildMeal();
+    if (!items.length) { toast("Ya estás cerca de tus metas — no hace falta más por hoy."); return; }
+    openAIReview(items, MEAL_OPTS[autoMeal()], "Plan para cerrar tu día");
+  }
+
   // ---------------- VISTA COACH (recomendaciones dinámicas) ----------------
   function renderCoach() {
     const t = targets();
@@ -278,8 +305,11 @@
     if (rem.carbs > 25 && rem.kcal > 100) sug.push(`<b>Carbohidratos</b> (${r(rem.carbs)} g): ~${(rem.carbs / 44.5).toFixed(1)} taza(s) de arroz · o 1 taza de avena + 1 plátano · o 2 papas medianas.`);
     if (rem.fat > 12 && rem.protein <= 15 && rem.carbs <= 25) sug.push(`<b>Grasa</b> (${r(rem.fat)} g): ~${Math.max(1, Math.round(rem.fat / 14))} cda de aceite de oliva · o ${r(rem.fat)} g de nueces/aguacate.`);
 
+    const canPlan = rem.kcal > 120 || rem.protein > 15;
     const sugBlock = sug.length
-      ? `<div class="card"><h2>Para cerrar tu día</h2>${sug.map(s => `<div class="banner info" style="margin-bottom:8px">${s}</div>`).join("")}<button class="btn small" id="coachAdd" style="margin-top:4px">+ Agregar comida</button></div>`
+      ? `<div class="card"><h2>Para cerrar tu día</h2>${sug.map(s => `<div class="banner info" style="margin-bottom:8px">${s}</div>`).join("")}
+          ${canPlan ? `<button class="btn" id="coachPlan" style="margin-top:6px">Armar comida para cerrar el día</button>` : ""}
+          <button class="btn secondary small" id="coachAdd" style="margin-top:10px">+ Agregar manual</button></div>`
       : `<div class="card"><div class="banner good" style="margin:0">Día prácticamente cerrado: estás en tus metas. Buen trabajo.</div></div>`;
 
     host.innerHTML = `
@@ -308,6 +338,7 @@
       </div>
     `;
     const ca = $("#coachAdd"); if (ca) ca.addEventListener("click", openAddFood);
+    const cp = $("#coachPlan"); if (cp) cp.addEventListener("click", openMealPlan);
   }
 
   // ---------------- VISTA PROGRESO ----------------
