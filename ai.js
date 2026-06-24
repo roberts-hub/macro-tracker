@@ -146,7 +146,8 @@ Otras reglas:
   async parse(text, meal) {
     const parsed = this._extractJSON(await this._raw(this._userMsg(text, meal), 1024));
     return (parsed.items || []).map(it => ({
-      name: it.name, grams: Math.round(it.grams) || 0, kcal: Math.round(it.kcal) || 0,
+      name: it.name, quantity: +(+it.quantity) > 0 ? +it.quantity : 1,
+      grams: Math.round(it.grams) || 0, kcal: Math.round(it.kcal) || 0,
       protein: +(+it.protein || 0).toFixed(1), carbs: +(+it.carbs || 0).toFixed(1),
       fat: +(+it.fat || 0).toFixed(1), fiber: +(+it.fiber || 0).toFixed(1),
     })).filter(it => it.name);

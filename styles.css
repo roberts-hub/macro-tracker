@@ -249,6 +249,8 @@ select { -webkit-appearance: none; appearance: none; background-image: linear-gr
 .nlmain .nlfood { flex: 1; }
 .nlsub { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
 .nlsub .nlgrams { width: 90px; flex-shrink: 0; padding: 10px 12px; }
+.qtylab { display: flex; flex-direction: column; gap: 4px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-dim); font-weight: 600; }
+.qtylab input { width: 78px; padding: 10px 12px; font-size: 15px; }
 .nlsub .nlunit { color: var(--ink-dim); font-size: 13px; }
 .nlsub .nlkc { margin-left: auto; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .nlrow.unmatched .nlkc { color: var(--danger); }

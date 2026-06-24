@@ -613,14 +613,20 @@
   }
 
   // ---------------- revisión de items estimados por IA ----------------
+  function trimNum(n) { return (Math.round(n * 100) / 100).toString(); }
+
   function aiRow(it) {
-    return `<div class="nlrow" data-basegr="${it.grams || 1}" data-kcal="${it.kcal}" data-p="${it.protein}" data-c="${it.carbs}" data-f="${it.fat}" data-fib="${it.fiber || 0}">
+    const q = it.quantity && it.quantity > 0 ? it.quantity : 1;
+    const baseGr = it.grams || 1;
+    const perUnit = baseGr / q;
+    return `<div class="nlrow" data-perunit="${perUnit}" data-basegr="${baseGr}" data-kcal="${it.kcal}" data-p="${it.protein}" data-c="${it.carbs}" data-f="${it.fat}" data-fib="${it.fiber || 0}">
       <div class="nlmain">
         <input type="text" class="aifood" value="${(it.name || "").replace(/"/g, "&quot;")}" placeholder="alimento">
         <button class="nldel" title="quitar">✕</button>
       </div>
       <div class="nlsub">
-        <input type="number" class="aigrams" inputmode="decimal" value="${it.grams}"><span class="nlunit">g</span>
+        <label class="qtylab">Cantidad<input type="number" class="aiqty" inputmode="decimal" step="any" value="${trimNum(q)}"></label>
+        <label class="qtylab">Gramos<input type="number" class="aigrams" inputmode="decimal" value="${it.grams}"></label>
         <span class="nlkc"></span>
       </div>
     </div>`;
@@ -629,17 +635,15 @@
   function openAIReview(items, meal, sourceText) {
     showModal(`
       <h3>Revisa lo detectado</h3>
-      <p class="muted">La IA estimó esto a partir de: “${(sourceText || "").replace(/</g, "&lt;").slice(0, 120)}”. Ajusta nombre o gramos (los macros se reescalan). Se agrega a <b>${meal}</b>.</p>
+      <p class="muted">La IA estimó esto de: “${(sourceText || "").replace(/</g, "&lt;").slice(0, 120)}”. Revisa la <b>cantidad</b> y los gramos (todo se reescala). Se agrega a <b>${meal}</b>.</p>
       <div id="aiRows">${items.map(aiRow).join("")}</div>
       <button class="btn secondary small" id="aiAddRow" style="margin:2px 0 16px">+ Otra línea</button>
       <button class="btn" id="aiConfirm">Agregar a ${meal}</button>
     `);
-    const scaled = (row) => {
-      const base = Number(row.dataset.basegr) || 1;
-      const g = Number(row.querySelector(".aigrams").value) || 0;
-      const r = g / base;
+    const macrosFor = (row, grams) => {
+      const r = grams / (Number(row.dataset.basegr) || 1);
       return {
-        grams: Math.round(g),
+        grams: Math.round(grams),
         kcal: Math.round(Number(row.dataset.kcal) * r),
         protein: +(Number(row.dataset.p) * r).toFixed(1),
         carbs: +(Number(row.dataset.c) * r).toFixed(1),
@@ -648,26 +652,34 @@
       };
     };
     const wire = (row) => {
-      const gi = row.querySelector(".aigrams"), kc = row.querySelector(".nlkc");
-      const upd = () => { kc.textContent = fmt(scaled(row).kcal) + " kcal"; };
-      gi.addEventListener("input", upd);
+      const qi = row.querySelector(".aiqty"), gi = row.querySelector(".aigrams"), kc = row.querySelector(".nlkc");
+      const perUnit = Number(row.dataset.perunit) || 1;
+      const refreshKc = () => { kc.textContent = fmt(macrosFor(row, Number(gi.value) || 0).kcal) + " kcal"; };
+      qi.addEventListener("input", () => { // cambiar cantidad → recalcula gramos
+        const q = Number(qi.value) || 0; gi.value = Math.round(perUnit * q); refreshKc();
+      });
+      gi.addEventListener("input", () => { // cambiar gramos → recalcula cantidad
+        const g = Number(gi.value) || 0; if (perUnit > 0) qi.value = trimNum(g / perUnit); refreshKc();
+      });
       row.querySelector(".nldel").addEventListener("click", () => row.remove());
-      upd();
+      refreshKc();
     };
     $$("#aiRows .nlrow").forEach(wire);
     $("#aiAddRow").addEventListener("click", () => {
       const host = $("#aiRows");
-      host.insertAdjacentHTML("beforeend", aiRow({ name: "", grams: 100, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }));
+      host.insertAdjacentHTML("beforeend", aiRow({ name: "", quantity: 1, grams: 100, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }));
       wire(host.lastElementChild);
     });
     $("#aiConfirm").addEventListener("click", () => {
       const added = [];
       $$("#aiRows .nlrow").forEach(row => {
         const name = row.querySelector(".aifood").value.trim();
-        const m = scaled(row);
+        const qty = Number(row.querySelector(".aiqty").value) || 1;
+        const m = macrosFor(row, Number(row.querySelector(".aigrams").value) || 0);
         if (!name || m.grams <= 0) return;
-        Store.addEntry(currentDate, { foodId: null, name, meal, ...m });
-        added.push(name);
+        const note = qty && Math.abs(qty - 1) > 0.01 ? `${trimNum(qty)} ×` : null;
+        Store.addEntry(currentDate, { foodId: null, name, meal, note, ...m });
+        added.push(note ? `${name} (${trimNum(qty)}×)` : name);
       });
       closeModal();
       toast(added.length ? `Agregado a ${meal}: ${added.join(", ")}.` : "No se agregó nada.");
