@@ -64,8 +64,10 @@ const NLP = {
         return { g: Math.round(port.g * mult), note: port.label };
       }
     }
-    // "puño/puñado" sin una porción de puño propia → puñado genérico (~40 g, verdura/fruta troceada)
-    if (unit === "puno" || unit === "punado") return { g: Math.round(40 * qty), note: `${qty} puño` };
+    // Medidas genéricas cuando el alimento no tiene esa porción propia
+    if (unit === "puno" || unit === "punado") return { g: Math.round(40 * qty) };   // puñado verdura/fruta troceada
+    if (unit === "cucharada" || unit === "cda") return { g: Math.round(15 * qty) };  // cucharada
+    if (unit === "cucharadita" || unit === "cdta") return { g: Math.round(5 * qty) }; // cucharadita
     if (food.portions && food.portions[0])
       return { g: Math.round(food.portions[0].g * qty), note: `${qty}× ${food.portions[0].label}` };
     return { g: Math.round(100 * qty), note: "" };
