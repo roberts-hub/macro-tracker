@@ -89,6 +89,8 @@
         </div>
       </div>
 
+      ${mealBreakdownCard()}
+
       ${proteinMealCard(t)}
 
       <div class="row spread" style="margin:22px 4px 10px">
@@ -105,6 +107,29 @@
       Store.setWater(currentDate, cur + Number(b.dataset.water));
     }));
     renderEntries();
+  }
+
+  const MEAL_COLORS = { Desayuno: "var(--ochre)", Almuerzo: "var(--olive)", Cena: "var(--clay)", Snack: "var(--mauve)", Otro: "var(--umber)" };
+
+  function mealBreakdownCard() {
+    const bd = Store.mealBreakdown(currentDate);
+    if (!bd.length) return "";
+    const dayKcal = bd.reduce((a, m) => a + m.kcal, 0);
+    const bar = bd.map(m => `<span style="width:${m.pct}%;background:${MEAL_COLORS[m.meal] || 'var(--umber)'}"></span>`).join("");
+    const rows = bd.map(m => `
+      <div class="bd-row">
+        <div class="bd-name"><i style="background:${MEAL_COLORS[m.meal] || 'var(--umber)'}"></i>${m.meal}</div>
+        <div class="bd-right">
+          <div class="bd-kcal"><b>${fmt(m.kcal)}</b> kcal · ${m.pct}%</div>
+          <div class="bd-macros">P ${m.protein} · C ${m.carbs} · G ${m.fat} · ${m.items} item${m.items>1?'s':''}</div>
+        </div>
+      </div>`).join("");
+    return `<div class="card">
+      <h2>Desglose por comida</h2>
+      <div class="bd-bar">${bar}</div>
+      <div class="bd-total">Total del día <b>${fmt(dayKcal)} kcal</b></div>
+      <div class="bd-list">${rows}</div>
+    </div>`;
   }
 
   function proteinMealCard(t) {
@@ -138,7 +163,7 @@
     host.innerHTML = order.filter(m => byMeal[m]).map(m => {
       const items = byMeal[m].map(e => `
         <div class="entry">
-          <div class="info">
+          <div class="info" data-edit="${e.id}">
             <div class="nm">${e.name}</div>
             <div class="mc">${e.grams} g · P ${e.protein} · C ${e.carbs} · G ${e.fat}</div>
           </div>
@@ -148,6 +173,7 @@
       return `<div class="meal-group"><div class="meal-head">${m}</div>${items}</div>`;
     }).join("");
     $$("[data-del]", host).forEach(b => b.addEventListener("click", () => Store.removeEntry(currentDate, b.dataset.del)));
+    $$("[data-edit]", host).forEach(el => el.addEventListener("click", () => editEntry(el.dataset.edit)));
   }
 
   // ---------------- anillos / barras ----------------
@@ -341,7 +367,7 @@
     const search = $("#foodSearch");
     search.addEventListener("input", () => renderSearch(search.value, meal));
     renderSearch("", meal);
-    $("#nlBtn").addEventListener("click", () => { quickAddNL($("#nlInput").value, meal); });
+    $("#nlBtn").addEventListener("click", () => { openNLReview($("#nlInput").value, meal); });
     setTimeout(()=>search.focus(), 100);
   }
 
@@ -397,40 +423,104 @@
     });
   }
 
-  // ---------------- Quick add lenguaje natural ----------------
-  function quickAddNL(text, meal) {
-    if (!text.trim()) return;
-    const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+  // ---------------- Describe + revisión editable ----------------
+  function nlRow(it) {
+    const val = it.food ? it.food.name : (it.raw || "");
+    return `<div class="nlrow ${it.matched ? "" : "unmatched"}">
+      <div class="nlmain">
+        <input type="text" class="nlfood" list="allFoods" value="${val.replace(/"/g, "&quot;")}" placeholder="escribe el alimento">
+        <button class="nldel" title="quitar">✕</button>
+      </div>
+      <div class="nlsub">
+        <input class="nlgrams" type="number" inputmode="decimal" value="${it.grams}"><span class="nlunit">g</span>
+        <span class="nlkc"></span>
+      </div>
+    </div>`;
+  }
+
+  function resolveFood(name, foods) {
+    const n = NLP.norm(name);
+    if (!n) return null;
+    return foods.find(x => NLP.norm(x.name) === n)
+        || foods.find(x => (x.aliases || []).some(a => NLP.norm(a) === n))
+        || (n.length > 2 ? foods.find(x => NLP.norm(x.name).includes(n)) : null);
+  }
+
+  function openNLReview(text, meal) {
+    if (!text.trim()) { toast("Escribe lo que comiste primero."); return; }
     const foods = Store.allFoods();
-    const chunks = text.split(/[\n,;]+| y /i).map(s=>s.trim()).filter(Boolean);
-    const added = []; const failed = [];
-    for (const chunk of chunks) {
-      // cantidad inicial
-      const numMatch = chunk.match(/^(\d+(?:[.,]\d+)?)\s*/);
-      let qty = numMatch ? parseFloat(numMatch[1].replace(",", ".")) : 1;
-      const gMatch = chunk.match(/(\d+(?:[.,]\d+)?)\s*(g|gr|gramos)\b/i);
-      const rest = norm(chunk);
-      // buscar alimento por inclusión de alias/nombre
-      let best = null, bestLen = 0;
-      for (const f of foods) {
-        const keys = [norm(f.name), ...(f.aliases||[]).map(norm)];
-        for (const k of keys) {
-          if (k.length >= 3 && rest.includes(k) && k.length > bestLen) { best = f; bestLen = k.length; }
-        }
-      }
-      if (!best) { failed.push(chunk); continue; }
-      let grams;
-      if (gMatch) grams = parseFloat(gMatch[1].replace(",", "."));
-      else if (best.portions && best.portions[0]) grams = best.portions[0].g * qty;
-      else grams = 100 * qty;
-      const m = NUTRITION.macrosFor(best, grams);
-      Store.addEntry(currentDate, { foodId:best.id, name:best.name, grams:Math.round(grams), meal, ...m });
-      added.push(`${best.name} (${Math.round(grams)} g)`);
-    }
-    closeModal();
-    let msg = added.length ? `Agregado: ${added.join(", ")}.` : "No reconocí alimentos.";
-    if (failed.length) msg += ` No encontré: ${failed.join(", ")}. Búscalos manualmente o créalos.`;
-    toast(msg);
+    const items = NLP.parse(text, foods);
+    if (!items.length) { toast("No detecté alimentos. Intenta describirlo distinto."); return; }
+    const datalist = `<datalist id="allFoods">${foods.map(f => `<option value="${f.name.replace(/"/g, "&quot;")}"></option>`).join("")}</datalist>`;
+    showModal(`
+      <h3>Revisa lo detectado</h3>
+      <p class="muted">Corrige el nombre o los gramos antes de guardar. Lo que no reconocí está marcado en rojo. Se agrega a <b>${meal}</b>.</p>
+      ${datalist}
+      <div id="nlRows">${items.map(nlRow).join("")}</div>
+      <button class="btn secondary small" id="nlAddRow" style="margin:2px 0 16px">+ Otra línea</button>
+      <button class="btn" id="nlConfirm">Agregar a ${meal}</button>
+    `);
+
+    const wireRow = (row) => {
+      const fi = row.querySelector(".nlfood"), gi = row.querySelector(".nlgrams"), kc = row.querySelector(".nlkc");
+      const upd = () => {
+        const f = resolveFood(fi.value, foods);
+        row.classList.toggle("unmatched", !f);
+        kc.textContent = f ? fmt(NUTRITION.macrosFor(f, Number(gi.value) || 0).kcal) + " kcal" : "sin reconocer";
+      };
+      fi.addEventListener("input", upd); gi.addEventListener("input", upd);
+      row.querySelector(".nldel").addEventListener("click", () => row.remove());
+      upd();
+    };
+    $$("#nlRows .nlrow").forEach(wireRow);
+    $("#nlAddRow").addEventListener("click", () => {
+      const host = $("#nlRows");
+      host.insertAdjacentHTML("beforeend", nlRow({ raw: "", food: null, grams: 100, matched: false }));
+      wireRow(host.lastElementChild);
+    });
+    $("#nlConfirm").addEventListener("click", () => {
+      const added = [], failed = [];
+      $$("#nlRows .nlrow").forEach(row => {
+        const name = row.querySelector(".nlfood").value.trim();
+        const grams = Number(row.querySelector(".nlgrams").value) || 0;
+        if (!name) return;
+        const f = resolveFood(name, foods);
+        if (f && grams > 0) { Store.addEntry(currentDate, { foodId: f.id, name: f.name, grams: Math.round(grams), meal, ...NUTRITION.macrosFor(f, grams) }); added.push(f.name); }
+        else failed.push(name);
+      });
+      closeModal();
+      if (added.length) toast(`Agregado a ${meal}: ${added.join(", ")}.` + (failed.length ? ` Sin reconocer: ${failed.join(", ")} — créalos en Perfil.` : ""));
+      else toast("No se agregó nada. Revisa los nombres o crea el alimento en Perfil.");
+    });
+  }
+
+  // ---------------- editar una comida registrada ----------------
+  function editEntry(id) {
+    const log = Store.state.logs[currentDate]; if (!log) return;
+    const e = log.entries.find(x => x.id === id); if (!e) return;
+    const f = Store.findFood(e.foodId);
+    const meals = ["Desayuno", "Almuerzo", "Cena", "Snack"];
+    showModal(`
+      <h3>${e.name}</h3>
+      ${f ? `<p class="muted">${f.kcal} kcal · P${f.p} · C${f.c} · G${f.f} por 100 g</p>` : `<p class="muted">Alimento personalizado</p>`}
+      <span class="lbl" style="color:var(--ink-dim);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px">Comida</span>
+      <div class="seg" id="edMeal" style="margin:8px 0 14px">${meals.map(m => `<button data-meal="${m}" class="${e.meal === m ? "on" : ""}">${m}</button>`).join("")}</div>
+      <label class="field"><span class="lbl">Gramos</span><input type="number" id="edGrams" value="${e.grams}" inputmode="decimal"></label>
+      <div id="edPrev" class="card" style="margin:0 0 14px;background:var(--paper)"></div>
+      <button class="btn" id="edSave">Guardar cambios</button>
+      <button class="btn secondary" id="edDel" style="margin-top:10px">Eliminar comida</button>
+    `);
+    let meal = e.meal;
+    $$("#edMeal button").forEach(b => b.addEventListener("click", () => { $$("#edMeal button").forEach(x => x.classList.remove("on")); b.classList.add("on"); meal = b.dataset.meal; }));
+    const gi = $("#edGrams");
+    const calc = (g) => f ? NUTRITION.macrosFor(f, g) : {
+      kcal: Math.round((e.kcal / e.grams) * g), protein: +((e.protein / e.grams) * g).toFixed(1),
+      carbs: +((e.carbs / e.grams) * g).toFixed(1), fat: +((e.fat / e.grams) * g).toFixed(1), fiber: +(((e.fiber || 0) / e.grams) * g).toFixed(1),
+    };
+    const upd = () => { const m = calc(Number(gi.value) || 0); $("#edPrev").innerHTML = `<div class="row spread"><b>${fmt(m.kcal)} kcal</b><span class="muted">P ${m.protein} · C ${m.carbs} · G ${m.fat}</span></div>`; };
+    gi.addEventListener("input", upd); upd();
+    $("#edSave").addEventListener("click", () => { const g = Number(gi.value) || 0; if (g <= 0) return; Store.updateEntry(currentDate, id, { grams: Math.round(g), meal, ...calc(g) }); closeModal(); toast("Comida actualizada ✔"); });
+    $("#edDel").addEventListener("click", () => { Store.removeEntry(currentDate, id); closeModal(); });
   }
 
   // ---------------- alimento propio ----------------

@@ -69,4 +69,18 @@ window.FOOD_DB = [
   { id: "miel", name: "Miel", aliases:["miel"], kcal:304, p:0.3, c:82, f:0, fib:0.2, portions:[{label:"1 cda (21 g)",g:21},{label:"100 g",g:100}] },
   { id: "azucar", name: "Azúcar", aliases:["azucar"], kcal:387, p:0, c:100, f:0, fib:0, portions:[{label:"1 cdta (4 g)",g:4},{label:"1 cda (12 g)",g:12}] },
   { id: "chocolate", name: "Chocolate negro 70%", aliases:["chocolate"], kcal:579, p:7.8, c:46, f:38, fib:11, portions:[{label:"1 porción (25 g)",g:25},{label:"100 g",g:100}] },
+
+  // ----- Platillos y comidas comunes (México/Latam) -----
+  { id: "cafe", name: "Café negro", aliases:["cafe","café","americano","espresso"], kcal:2, p:0.3, c:0, f:0, fib:0, portions:[{label:"1 taza (240 ml)",g:240},{label:"1 shot (30 ml)",g:30}] },
+  { id: "taco_pastor", name: "Taco al pastor", aliases:["taco","tacos","pastor"], kcal:226, p:12, c:18, f:11, fib:2, portions:[{label:"1 taco (85 g)",g:85},{label:"100 g",g:100}] },
+  { id: "quesadilla", name: "Quesadilla", aliases:["quesadilla","quesadillas"], kcal:295, p:13, c:27, f:15, fib:2, portions:[{label:"1 quesadilla (120 g)",g:120},{label:"100 g",g:100}] },
+  { id: "pizza", name: "Pizza", aliases:["pizza"], kcal:266, p:11, c:33, f:10, fib:2.3, portions:[{label:"1 rebanada (107 g)",g:107},{label:"2 rebanadas (214 g)",g:214},{label:"100 g",g:100}] },
+  { id: "hamburguesa", name: "Hamburguesa", aliases:["hamburguesa","burger"], kcal:254, p:14, c:19, f:13, fib:1.5, portions:[{label:"1 hamburguesa (215 g)",g:215},{label:"100 g",g:100}] },
+  { id: "papas_fritas", name: "Papas a la francesa", aliases:["papas fritas","papas a la francesa","french fries","frances"], kcal:312, p:3.4, c:41, f:15, fib:3.8, portions:[{label:"1 orden (117 g)",g:117},{label:"100 g",g:100}] },
+  { id: "pan_blanco", name: "Pan blanco / bolillo", aliases:["bolillo","pan blanco","telera","baguette"], kcal:275, p:9, c:52, f:3.5, fib:2.4, portions:[{label:"1 bolillo (60 g)",g:60},{label:"1 rebanada (28 g)",g:28},{label:"100 g",g:100}] },
+  { id: "sandwich", name: "Sándwich (jamón y queso)", aliases:["sandwich","sándwich","torta","emparedado"], kcal:250, p:13, c:28, f:9, fib:2, portions:[{label:"1 sándwich (150 g)",g:150},{label:"100 g",g:100}] },
+  { id: "leche_almendras", name: "Leche de almendras", aliases:["leche de almendras","almond milk","leche almendra"], kcal:15, p:0.6, c:0.6, f:1.2, fib:0.3, portions:[{label:"1 vaso (240 ml)",g:240},{label:"100 ml",g:100}] },
+  { id: "barra_proteina", name: "Barra de proteína", aliases:["barra de proteina","barra proteica","protein bar","barrita"], kcal:350, p:30, c:38, f:10, fib:4, portions:[{label:"1 barra (60 g)",g:60},{label:"100 g",g:100}] },
+  { id: "guacamole", name: "Guacamole", aliases:["guacamole","guaca"], kcal:155, p:2, c:9, f:14, fib:6.5, portions:[{label:"1 porción (90 g)",g:90},{label:"100 g",g:100}] },
+  { id: "frijol_refrito", name: "Frijoles refritos", aliases:["frijoles refritos","refritos"], kcal:145, p:7, c:19, f:4.5, fib:5.5, portions:[{label:"1 porción (130 g)",g:130},{label:"100 g",g:100}] },
 ];

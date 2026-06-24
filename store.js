@@ -118,6 +118,25 @@ const Store = {
     return meals;
   },
 
+  // Desglose por comida: kcal/macros de cada comida y su % del total del día
+  mealBreakdown(dateKey) {
+    const log = this.state.logs[dateKey] || { entries: [] };
+    const order = ["Desayuno", "Almuerzo", "Cena", "Snack", "Otro"];
+    const meals = {};
+    for (const e of log.entries) {
+      const m = e.meal || "Otro";
+      (meals[m] ||= { kcal: 0, protein: 0, carbs: 0, fat: 0, items: 0 });
+      meals[m].kcal += e.kcal || 0; meals[m].protein += e.protein || 0;
+      meals[m].carbs += e.carbs || 0; meals[m].fat += e.fat || 0; meals[m].items++;
+    }
+    const total = Object.values(meals).reduce((a, m) => a + m.kcal, 0) || 1;
+    return order.filter(m => meals[m]).map(m => ({
+      meal: m, kcal: Math.round(meals[m].kcal),
+      protein: +meals[m].protein.toFixed(1), carbs: +meals[m].carbs.toFixed(1), fat: +meals[m].fat.toFixed(1),
+      items: meals[m].items, pct: Math.round((meals[m].kcal / total) * 100),
+    }));
+  },
+
   // Tendencia de peso: promedio semanal y ritmo (kg/sem)
   weightTrend() {
     const w = this.state.weights;
