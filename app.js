@@ -544,13 +544,17 @@
   // ---------------- Describe + revisión editable ----------------
   function nlRow(it) {
     const val = it.food ? it.food.name : (it.raw || "");
-    return `<div class="nlrow ${it.matched ? "" : "unmatched"}">
+    const q = it.quantity && it.quantity > 0 ? it.quantity : 1;
+    const baseGr = it.grams || 1;
+    const perUnit = baseGr / q;
+    return `<div class="nlrow ${it.matched ? "" : "unmatched"}" data-perunit="${perUnit}">
       <div class="nlmain">
         <input type="text" class="nlfood" list="allFoods" value="${val.replace(/"/g, "&quot;")}" placeholder="escribe el alimento">
         <button class="nldel" title="quitar">✕</button>
       </div>
       <div class="nlsub">
-        <input class="nlgrams" type="number" inputmode="decimal" value="${it.grams}"><span class="nlunit">g</span>
+        <label class="qtylab">Cantidad<input type="number" class="nlqty" inputmode="decimal" step="any" value="${trimNum(q)}"></label>
+        <label class="qtylab">Gramos<input type="number" class="nlgrams" inputmode="decimal" value="${it.grams}"></label>
         <span class="nlkc"></span>
       </div>
     </div>`;
@@ -580,30 +584,38 @@
     `);
 
     const wireRow = (row) => {
-      const fi = row.querySelector(".nlfood"), gi = row.querySelector(".nlgrams"), kc = row.querySelector(".nlkc");
+      const fi = row.querySelector(".nlfood"), qi = row.querySelector(".nlqty"), gi = row.querySelector(".nlgrams"), kc = row.querySelector(".nlkc");
+      const perUnit = Number(row.dataset.perunit) || 1;
       const upd = () => {
         const f = resolveFood(fi.value, foods);
         row.classList.toggle("unmatched", !f);
         kc.textContent = f ? fmt(NUTRITION.macrosFor(f, Number(gi.value) || 0).kcal) + " kcal" : "sin reconocer";
       };
-      fi.addEventListener("input", upd); gi.addEventListener("input", upd);
+      fi.addEventListener("input", upd);
+      qi.addEventListener("input", () => { const q = Number(qi.value) || 0; gi.value = Math.round(perUnit * q); upd(); });
+      gi.addEventListener("input", () => { if (perUnit > 0) qi.value = trimNum((Number(gi.value) || 0) / perUnit); upd(); });
       row.querySelector(".nldel").addEventListener("click", () => row.remove());
       upd();
     };
     $$("#nlRows .nlrow").forEach(wireRow);
     $("#nlAddRow").addEventListener("click", () => {
       const host = $("#nlRows");
-      host.insertAdjacentHTML("beforeend", nlRow({ raw: "", food: null, grams: 100, matched: false }));
+      host.insertAdjacentHTML("beforeend", nlRow({ raw: "", food: null, grams: 100, quantity: 1, matched: false }));
       wireRow(host.lastElementChild);
     });
     $("#nlConfirm").addEventListener("click", () => {
       const added = [], failed = [];
       $$("#nlRows .nlrow").forEach(row => {
         const name = row.querySelector(".nlfood").value.trim();
+        const qty = Number(row.querySelector(".nlqty").value) || 1;
         const grams = Number(row.querySelector(".nlgrams").value) || 0;
         if (!name) return;
         const f = resolveFood(name, foods);
-        if (f && grams > 0) { Store.addEntry(currentDate, { foodId: f.id, name: f.name, grams: Math.round(grams), meal, ...NUTRITION.macrosFor(f, grams) }); added.push(f.name); }
+        if (f && grams > 0) {
+          const note = Math.abs(qty - 1) > 0.01 ? `${trimNum(qty)} ×` : null;
+          Store.addEntry(currentDate, { foodId: f.id, name: f.name, grams: Math.round(grams), meal, note, ...NUTRITION.macrosFor(f, grams) });
+          added.push(note ? `${f.name} (${trimNum(qty)}×)` : f.name);
+        }
         else failed.push(name);
       });
       closeModal();

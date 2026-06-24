@@ -76,7 +76,7 @@ const NLP = {
       const qty = this.parseQty(nseg);
       const food = this.matchFood(nseg, foods);
       const { g } = this.gramsFor(nseg, food, qty);
-      items.push({ raw: seg, food: food || null, grams: g > 0 ? g : 100, matched: !!food });
+      items.push({ raw: seg, food: food || null, grams: g > 0 ? g : 100, quantity: qty > 0 ? qty : 1, matched: !!food });
     }
     return items;
   },
